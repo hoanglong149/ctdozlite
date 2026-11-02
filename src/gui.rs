@@ -1521,6 +1521,21 @@ impl ZaloGuiApp {
 // Main eframe::App Implementation
 // ---------------------------------------------------------------------------
 
+#[cfg(target_os = "macos")]
+fn is_space_key_down() -> bool {
+    extern "C" {
+        fn CGEventSourceKeyState(state_id: i32, keycode: u16) -> bool;
+    }
+    // 0 is kCGEventSourceStateCombinedSessionState
+    // 49 (0x31) is the standard macOS virtual keycode for Spacebar (kVK_Space)
+    unsafe { CGEventSourceKeyState(0, 49) }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_space_key_down() -> bool {
+    false
+}
+
 impl eframe::App for ZaloGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(Key::Q))
@@ -1536,23 +1551,71 @@ impl eframe::App for ZaloGuiApp {
         // Track IME Preedit / Composition lifecycle (macOS Telex, VNI & CJK)
         let mut ime_commit_in_frame = false;
         let mut ime_active = self.ime_active;
+        let mut ime_space_commit = false;
+        let space_is_down = is_space_key_down();
+
         ctx.input_mut(|i| {
-            for event in &i.events {
+            let space_in_events = i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key {
+                        key: egui::Key::Space,
+                        ..
+                    }
+                ) || matches!(
+                    e,
+                    egui::Event::Text(s) if s == " "
+                )
+            });
+            let space_pressed = space_is_down || space_in_events;
+
+            for event in &mut i.events {
                 match event {
                     egui::Event::Ime(egui::ImeEvent::Preedit(text)) => {
                         ime_active = !text.is_empty();
                     }
-                    egui::Event::Ime(egui::ImeEvent::Commit(_)) => {
-                        if ime_active {
-                            ime_commit_in_frame = true;
-                        }
+                    egui::Event::Ime(egui::ImeEvent::Commit(ref mut text)) => {
+                        ime_commit_in_frame = true;
                         ime_active = false;
+
+                        // macOS Vietnamese IME fix:
+                        // When user presses Space to commit a word in Vietnamese Telex (e.g. "dính" + Space),
+                        // winit drops the Space key event. In standard macOS text fields, Space commits the word
+                        // AND appends a space character so words don't get glued together ("dính dấu cách")
+                        // and user doesn't have to hit Space twice.
+                        // If space was pressed to commit this word, ensure exactly one trailing space is added!
+                        if space_pressed
+                            && !text.is_empty()
+                            && !text.ends_with(' ')
+                            && !text.chars().any(crate::gui::theme::is_cjk)
+                        {
+                            text.push(' ');
+                            ime_space_commit = true;
+                        }
                     }
                     egui::Event::Ime(egui::ImeEvent::Disabled) => {
                         ime_active = false;
                     }
                     _ => {}
                 }
+            }
+
+            // If a space was appended as part of IME Commit, filter out any redundant raw Space events
+            // in this frame to prevent accidental double spaces.
+            if ime_space_commit {
+                i.events.retain(|event| {
+                    !matches!(
+                        event,
+                        egui::Event::Text(s) if s == " "
+                    ) && !matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::Space,
+                            pressed: true,
+                            ..
+                        }
+                    )
+                });
             }
 
             // PR #7877 fix: When IME is currently composing or committing, consume and filter Key::Enter
