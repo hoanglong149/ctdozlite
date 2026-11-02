@@ -592,8 +592,13 @@ impl ZaloGuiApp {
                                         .hint_text("Tìm hội thoại, tin nhắn, SĐT...")
                                         .desired_width(edit_rect.width()),
                                 );
+                                let is_ime_busy = self.ime_active || self.ime_just_committed;
+                                if is_ime_busy && s_resp.lost_focus() {
+                                    s_resp.request_focus();
+                                }
                                 let s_enter = (s_resp.lost_focus() || s_resp.has_focus())
-                                    && ui.input(|i| i.key_pressed(Key::Enter));
+                                    && ui.input(|i| i.key_pressed(Key::Enter))
+                                    && !is_ime_busy;
                                 let digits_cnt = self
                                     .search_query
                                     .chars()
@@ -3934,14 +3939,34 @@ impl ZaloGuiApp {
                                             - sched_btn_w
                                             - 16.0)
                                             .max(50.0);
+                                        let is_mac = cfg!(target_os = "macos");
+                                        let cmd_or_ctrl = if is_mac {
+                                            ui.input(|i| i.modifiers.command)
+                                        } else {
+                                            ui.input(|i| i.modifiers.ctrl)
+                                        };
+                                        let send_mode_cmd_enter =
+                                            self.settings.send_message_key == "cmd_enter";
+
+                                        let composer_hint = if send_mode_cmd_enter {
+                                            let key_hint = if is_mac { "Cmd+Enter" } else { "Ctrl+Enter" };
+                                            format!(
+                                                "Nhập tin nhắn tới {} ({} để gửi)...",
+                                                truncate_chars(&thread_name, 14),
+                                                key_hint
+                                            )
+                                        } else {
+                                            format!(
+                                                "Nhập tin nhắn tới {}...",
+                                                truncate_chars(&thread_name, 16)
+                                            )
+                                        };
+
                                         let text_edit =
                                             egui::TextEdit::singleline(&mut self.input_message)
                                                 .id(Id::new(("chat_composer_input", &thread_id)))
                                                 .frame(false)
-                                                .hint_text(format!(
-                                                    "Nhập tin nhắn tới {}...",
-                                                    truncate_chars(&thread_name, 16)
-                                                ))
+                                                .hint_text(composer_hint)
                                                 .margin(Margin::symmetric(6.0, 7.0))
                                                 .desired_width(input_w);
 
@@ -3951,6 +3976,13 @@ impl ZaloGuiApp {
                                                 ui.ctx(),
                                                 std::iter::once(self.input_message.as_str()),
                                             );
+                                        }
+
+                                        // If input field lost focus because Enter was pressed to commit an IME pre-edit composition on macOS,
+                                        // immediately request focus back so the user can continue typing seamlessly without clicking!
+                                        let is_ime_busy = self.ime_active || self.ime_just_committed;
+                                        if is_ime_busy && response.lost_focus() {
+                                            response.request_focus();
                                         }
                                         if self.composer_focus_pending {
                                             response.request_focus();
@@ -4022,9 +4054,22 @@ impl ZaloGuiApp {
                                             self.composer_sticker_selected = None;
                                         }
 
-                                        let enter_pressed =
-                                            (response.lost_focus() || response.has_focus())
-                                                && ui.input(|i| i.key_pressed(Key::Enter));
+                                        let send_shortcut = (response.has_focus() || response.lost_focus())
+                                            && ui.input(|i| i.key_pressed(Key::Enter))
+                                            && cmd_or_ctrl;
+
+                                        let enter_pressed = if send_mode_cmd_enter {
+                                            send_shortcut
+                                        } else {
+                                            let shift_held = ui.input(|i| i.modifiers.shift);
+                                            let plain_enter = (response.has_focus() || response.lost_focus())
+                                                && ui.input(|i| i.key_pressed(Key::Enter))
+                                                && !shift_held
+                                                && !cmd_or_ctrl
+                                                && !is_ime_busy;
+
+                                            plain_enter || send_shortcut
+                                        };
                                         if enter_pressed {
                                             if let Some(sel) = self.composer_sticker_selected {
                                                 if let Some(st) = contextual_stickers.get(sel) {
@@ -4115,7 +4160,13 @@ impl ZaloGuiApp {
                                         }
 
 
+                                        let send_tip = if send_mode_cmd_enter {
+                                            if is_mac { "Gửi tin nhắn (⌘+Enter)" } else { "Gửi tin nhắn (Ctrl+Enter)" }
+                                        } else {
+                                            "Gửi tin nhắn (Enter)"
+                                        };
                                         let send_clicked = send_resp
+                                            .on_hover_text(send_tip)
                                             .on_hover_cursor(if can_send {
                                                 CursorIcon::PointingHand
                                             } else {

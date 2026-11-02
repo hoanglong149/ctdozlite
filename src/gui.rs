@@ -268,6 +268,8 @@ struct AppSettings {
     enable_notifications: bool,
     play_notification_sound: bool,
     // 5. Tin nhắn
+    #[serde(default = "default_send_message_key")]
+    send_message_key: String, // "enter" | "cmd_enter"
     quick_messages_enabled: bool,
     hidden_chat_pin_enabled: bool,
     split_priority_inbox: bool,
@@ -290,6 +292,14 @@ struct AppSettings {
     // 9. Cập nhật tự động qua GitHub Releases API
     auto_check_updates: bool,
     skipped_update_version: String,
+}
+
+fn default_send_message_key() -> String {
+    if cfg!(target_os = "macos") {
+        "cmd_enter".into()
+    } else {
+        "enter".into()
+    }
 }
 
 impl Default for AppSettings {
@@ -322,6 +332,7 @@ impl Default for AppSettings {
             use_avatar_as_wallpaper: false,
             enable_notifications: true,
             play_notification_sound: false,
+            send_message_key: default_send_message_key(),
             quick_messages_enabled: true,
             hidden_chat_pin_enabled: true,
             split_priority_inbox: false,
@@ -515,6 +526,9 @@ pub struct ZaloGuiApp {
     event_tx: Sender<GuiEvent>,
     /// (thread id, number of newest bubbles rendered) — see `CHAT_RENDER_STEP`.
     chat_render_window: (String, usize),
+    // IME / Composition state for macOS Telex & CJK
+    ime_active: bool,
+    ime_just_committed: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -716,6 +730,8 @@ impl ZaloGuiApp {
             event_rx: rx,
             event_tx: tx.clone(),
             chat_render_window: (String::new(), CHAT_RENDER_STEP),
+            ime_active: false,
+            ime_just_committed: false,
         };
         let mut app = app;
         let _ = app.reload_custom_sticker_packs();
@@ -1516,6 +1532,45 @@ impl eframe::App for ZaloGuiApp {
             }
             std::process::exit(0);
         }
+
+        // Track IME Preedit / Composition lifecycle (macOS Telex, VNI & CJK)
+        let mut ime_commit_in_frame = false;
+        let mut ime_active = self.ime_active;
+        ctx.input_mut(|i| {
+            for event in &i.events {
+                match event {
+                    egui::Event::Ime(egui::ImeEvent::Preedit(text)) => {
+                        ime_active = !text.is_empty();
+                    }
+                    egui::Event::Ime(egui::ImeEvent::Commit(_)) => {
+                        if ime_active {
+                            ime_commit_in_frame = true;
+                        }
+                        ime_active = false;
+                    }
+                    egui::Event::Ime(egui::ImeEvent::Disabled) => {
+                        ime_active = false;
+                    }
+                    _ => {}
+                }
+            }
+
+            // PR #7877 fix: When IME is currently composing or committing, consume and filter Key::Enter
+            // so it doesn't cause TextEdit to blur or trigger premature message sending!
+            if ime_active || ime_commit_in_frame {
+                i.events.retain(|event| {
+                    !matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::Enter,
+                            ..
+                        }
+                    )
+                });
+            }
+        });
+        self.ime_active = ime_active;
+        self.ime_just_committed = ime_commit_in_frame;
         if self.theme_dirty {
             self.palette().apply_to_ctx(ctx);
             self.theme_dirty = false;

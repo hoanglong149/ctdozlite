@@ -1623,6 +1623,37 @@ impl ZaloGuiApp {
                                                 });
                                         }
                                         SettingsTab::Messages => {
+                                            ui.label(RichText::new("Phím tắt gửi tin nhắn").color(pal.text_primary).size(13.5).strong());
+                                            ui.add_space(2.0);
+                                            ui.label(RichText::new("Chọn phím gửi tin nhắn (khuyên dùng Cmd+Enter trên macOS để tránh xung đột với bộ gõ tiếng Việt)").color(pal.text_secondary).size(12.0));
+                                            ui.add_space(6.0);
+                                            egui::Frame::none()
+                                                .fill(pal.bg_elevated)
+                                                .stroke(Stroke::new(1.0_f32, pal.border))
+                                                .rounding(Rounding::same(8.0))
+                                                .inner_margin(Margin::symmetric(14.0, 10.0))
+                                                .show(ui, |ui| {
+                                                    let is_mac = cfg!(target_os = "macos");
+                                                    let enter_desc = "Nhấn Enter để gửi (Shift+Enter để xuống dòng)";
+                                                    let cmd_enter_desc = if is_mac {
+                                                        "Nhấn Cmd+Enter để gửi (Enter để xuống dòng / chốt chữ Telex)"
+                                                    } else {
+                                                        "Nhấn Ctrl+Enter để gửi (Enter để xuống dòng / chốt chữ)"
+                                                    };
+                                                    for (val, lbl) in [("enter", enter_desc), ("cmd_enter", cmd_enter_desc)] {
+                                                        ui.horizontal(|ui| {
+                                                            ui.label(RichText::new(lbl).color(pal.text_primary).size(13.0));
+                                                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                                                if ui.radio_value(&mut self.settings.send_message_key, val.into(), "").changed() {
+                                                                    self.settings.save();
+                                                                }
+                                                            });
+                                                        });
+                                                        ui.add_space(4.0);
+                                                    }
+                                                });
+                                            ui.add_space(14.0);
+
                                             egui::Frame::none()
                                                 .fill(pal.bg_elevated)
                                                 .stroke(Stroke::new(1.0_f32, pal.border))
