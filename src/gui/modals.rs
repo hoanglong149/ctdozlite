@@ -1625,7 +1625,7 @@ impl ZaloGuiApp {
                                         SettingsTab::Messages => {
                                             ui.label(RichText::new("Phím tắt gửi tin nhắn").color(pal.text_primary).size(13.5).strong());
                                             ui.add_space(2.0);
-                                            ui.label(RichText::new("Chọn phím gửi tin nhắn (khuyên dùng Cmd+Enter trên macOS để tránh xung đột với bộ gõ tiếng Việt)").color(pal.text_secondary).size(12.0));
+                                            ui.label(RichText::new("Chọn phím gửi tin nhắn (mặc định: phím Enter để gửi)").color(pal.text_secondary).size(12.0));
                                             ui.add_space(6.0);
                                             egui::Frame::none()
                                                 .fill(pal.bg_elevated)

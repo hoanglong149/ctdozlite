@@ -295,11 +295,7 @@ struct AppSettings {
 }
 
 fn default_send_message_key() -> String {
-    if cfg!(target_os = "macos") {
-        "cmd_enter".into()
-    } else {
-        "enter".into()
-    }
+    "enter".into()
 }
 
 impl Default for AppSettings {
