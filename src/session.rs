@@ -18,6 +18,61 @@ pub const ZPW_VER: &str = "694";
 pub const ZPW_TYPE: &str = "30";
 pub const CONFIG_DOMAIN: &str = "zaloapp.com";
 
+
+// ---------------------------------------------------------------------------
+// Client-Side Privacy Blocker (block outbound typing / delivered / seen)
+// ---------------------------------------------------------------------------
+static PRIVACY_BLOCK_TYPING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static PRIVACY_BLOCK_DELIVERED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static PRIVACY_BLOCK_SEEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Update the active client-side privacy blocker switches (`block_typing`, `block_delivered`, `block_seen`).
+pub fn set_privacy_blocker(block_typing: bool, block_delivered: bool, block_seen: bool) {
+    use std::sync::atomic::Ordering;
+    PRIVACY_BLOCK_TYPING.store(block_typing, Ordering::Relaxed);
+    PRIVACY_BLOCK_DELIVERED.store(block_delivered, Ordering::Relaxed);
+    PRIVACY_BLOCK_SEEN.store(block_seen, Ordering::Relaxed);
+}
+
+/// Return `(block_typing, block_delivered, block_seen)`.
+pub fn privacy_blocker_state() -> (bool, bool, bool) {
+    use std::sync::atomic::Ordering;
+    (
+        PRIVACY_BLOCK_TYPING.load(Ordering::Relaxed),
+        PRIVACY_BLOCK_DELIVERED.load(Ordering::Relaxed),
+        PRIVACY_BLOCK_SEEN.load(Ordering::Relaxed),
+    )
+}
+
+/// Check whether `url` matches an outbound typing / delivered / seen telemetry endpoint
+/// that the user has actively blocked in Privacy Guard.
+pub fn is_url_blocked_by_privacy(url: &str) -> bool {
+    use std::sync::atomic::Ordering;
+    if PRIVACY_BLOCK_TYPING.load(Ordering::Relaxed)
+        && (url.contains("/api/message/typing") || url.contains("/api/group/typing"))
+    {
+        return true;
+    }
+    if PRIVACY_BLOCK_DELIVERED.load(Ordering::Relaxed)
+        && (url.contains("/api/message/delivered")
+            || url.contains("/api/group/delivered")
+            || url.contains("/api/e2ee/pc/t/message/delivered"))
+    {
+        return true;
+    }
+    if PRIVACY_BLOCK_SEEN.load(Ordering::Relaxed)
+        && (url.contains("/api/message/seen")
+            || url.contains("/api/group/seen")
+            || url.contains("/api/e2ee/pc/t/message/seen")
+            || url.contains("/api/e2ee/pc/t/group/seen"))
+    {
+        return true;
+    }
+    false
+}
 /// Domain table.
 ///
 /// [O] **Live-verified** against a QR-authenticated Zalo Web session on 2026-10-21.
@@ -298,6 +353,10 @@ impl Domains {
         if let Some(saved) = self.saved_candidates.get(canonical) {
             push_unique_host(&mut list, saved);
         }
+        if canonical == "group_cloud_message" {
+            push_unique_host(&mut list, "https://tt-group-cm.chat.zalo.me");
+            push_unique_host(&mut list, "https://tt-group-cm.api.zaloapp.com");
+        }
         if canonical == "friend" {
             push_unique_host(&mut list, &self.profile);
         }
@@ -350,6 +409,9 @@ pub struct SavedSession {
     /// until a fresh login replaces it. Absent in files from older builds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expired_at: Option<i64>,
+    /// Optional HTTP/HTTPS/SOCKS5 proxy URL configured for this account/profile (#64).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy_url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -374,6 +436,83 @@ pub struct Session {
     /// persists in `session.json` so the next start asks for a login instead of
     /// re-testing a dead session.
     pub expired_at: Option<i64>,
+    /// Optional outbound proxy URL (`http://`, `https://`, `socks5://`, `socks5h://`) for multi-account setups (#64).
+    pub proxy_url: Option<String>,
+}
+
+/// Normalize and validate a proxy URL string (`http://`, `https://`, `socks5://`, `socks5h://`, or `host:port`, #64).
+pub fn normalize_proxy_url(raw: &str) -> Result<Option<String>> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let with_scheme = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
+    };
+    let parsed = reqwest::Url::parse(&with_scheme)
+        .map_err(|e| anyhow::anyhow!("Định dạng Proxy không hợp lệ ({e})"))?;
+    let scheme = parsed.scheme();
+    if !matches!(scheme, "http" | "https" | "socks5" | "socks5h") {
+        bail!("Giao thức Proxy không được hỗ trợ: '{scheme}://' (chỉ hỗ trợ http://, https://, socks5://)");
+    }
+    if parsed.host_str().unwrap_or("").is_empty() {
+        bail!("Địa chỉ Proxy thiếu tên miền hoặc IP máy chủ");
+    }
+    let _ = reqwest::Proxy::all(with_scheme.as_str())
+        .map_err(|e| anyhow::anyhow!("Không tạo được cấu hình Proxy: {e}"))?;
+    Ok(Some(with_scheme))
+}
+
+/// Mask `user:password@` credentials in a proxy URL so secrets never appear in logs or status text (#64).
+pub fn redact_proxy_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if let Ok(mut parsed) = reqwest::Url::parse(trimmed) {
+        if !parsed.username().is_empty() || parsed.password().is_some() {
+            let _ = parsed.set_username("***");
+            let _ = parsed.set_password(Some("***"));
+            return parsed.to_string();
+        }
+    }
+    if let Some((scheme, rest)) = trimmed.split_once("://") {
+        if let Some((_, host_part)) = rest.rsplit_once('@') {
+            return format!("{scheme}://***:***@{host_part}");
+        }
+    }
+    trimmed.to_string()
+}
+
+fn build_http_client(jar: &Arc<Jar>, proxy_url: Option<&str>) -> Result<Client> {
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert(REFERER, HeaderValue::from_static("https://chat.zalo.me/"));
+    default_headers.insert(ORIGIN, HeaderValue::from_static("https://chat.zalo.me"));
+    let mut builder = Client::builder()
+        .cookie_provider(Arc::clone(jar))
+        .default_headers(default_headers)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(35))
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) ZaloPC/26.10.11 Chrome/122.0.0.0 Electron/29.0.0 Safari/537.36",
+        );
+    if let Some(raw_proxy) = proxy_url.map(str::trim).filter(|s| !s.is_empty()) {
+        if let Some(norm) = normalize_proxy_url(raw_proxy)? {
+            let mut proxy = reqwest::Proxy::all(&norm)?;
+            if let Ok(parsed) = reqwest::Url::parse(&norm) {
+                let user = parsed.username();
+                if !user.is_empty() {
+                    let pass = parsed.password().unwrap_or("");
+                    proxy = proxy.basic_auth(user, pass);
+                }
+            }
+            builder = builder.proxy(proxy);
+        }
+    }
+    Ok(builder.build()?)
 }
 
 /// `error_code` values Zalo answers when the stored credentials are no longer usable.
@@ -469,31 +608,17 @@ impl SessionStatus {
 impl Session {
     pub fn new(verbose: bool, dump: bool, dump_raw: bool) -> Result<Self> {
         let jar = Arc::new(Jar::default());
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(
-            REFERER,
-            HeaderValue::from_static("https://chat.zalo.me/"),
-        );
-        default_headers.insert(
-            ORIGIN,
-            HeaderValue::from_static("https://chat.zalo.me"),
-        );
-        let http = Client::builder()
-            .cookie_provider(Arc::clone(&jar))
-            .default_headers(default_headers)
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(35))
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-                 (KHTML, like Gecko) ZaloPC/26.10.11 Chrome/122.0.0.0 Electron/29.0.0 Safari/537.36",
-            )
-            .build()?;
+        let env_proxy = std::env::var("ZALO_PROXY")
+            .or_else(|_| std::env::var("CTDOZLITE_PROXY"))
+            .ok()
+            .and_then(|v| normalize_proxy_url(&v).ok().flatten());
+        let http = build_http_client(&jar, env_proxy.as_deref())?;
         Ok(Self {
             http,
             jar,
             domains: Domains::default(),
             imei: random_imei(),
-            computer_name: std::env::var("COMPUTERNAME").unwrap_or_else(|_| "DESKTOP".into()),
+            computer_name: Self::real_computer_name(),
             secret_key: None,
             session_key: None,
             zpw_sek: None,
@@ -502,19 +627,120 @@ impl Session {
             dump,
             dump_raw,
             expired_at: None,
+            proxy_url: env_proxy,
         })
     }
 
-    /// Store `zpw_sek` session token, attach it to `self.login`, and insert the session cookie.
-    pub fn set_zpw_sek(&mut self, v: String) {
-        if v.is_empty() {
+    /// Configure or clear the HTTP/HTTPS/SOCKS5 proxy for this session, rebuilding the underlying
+    /// `reqwest::Client` while preserving all session cookies (`zpw_sek`, #64).
+    pub fn set_proxy(&mut self, proxy_url: Option<&str>) -> Result<Option<String>> {
+        let norm = match proxy_url {
+            Some(raw) => normalize_proxy_url(raw)?,
+            None => None,
+        };
+        self.http = build_http_client(&self.jar, norm.as_deref())?;
+        self.proxy_url = norm.clone();
+        if let Some(sek) = self.effective_zpw_sek() {
+            self.set_zpw_sek(sek);
+        }
+        Ok(norm)
+    }
+
+    /// Extract active `zpw_sek` from `self.zpw_sek`, `self.login`, or cookies captured in `self.jar`
+    /// on `.zaloapp.com` (`qr-id.zaloapp.com`, `wpa.zaloapp.com`) or `.chat.zalo.me` (#115).
+    pub fn effective_zpw_sek(&self) -> Option<String> {
+        if let Some(sek) = self
+            .zpw_sek
+            .as_deref()
+            .filter(|s| !s.is_empty() && *s != "EXPIRED")
+        {
+            return Some(sek.to_string());
+        }
+        if let Some(sek) = self
+            .login
+            .as_ref()
+            .map(|l| l.zpw_sek.as_str())
+            .filter(|s| !s.is_empty() && *s != "EXPIRED")
+        {
+            return Some(sek.to_string());
+        }
+        use reqwest::cookie::CookieStore;
+        let probe_urls = [
+            "https://qr-id.zaloapp.com",
+            "https://wpa.zaloapp.com",
+            "https://chat.zalo.me",
+            "https://wpa.chat.zalo.me",
+            "https://tt-profile-wpa.chat.zalo.me",
+            "https://tt-profile-wpa.zaloapp.com",
+            "https://tt-friend-wpa.chat.zalo.me",
+            "https://tt-friend-wpa.zaloapp.com",
+        ];
+        for raw_url in probe_urls {
+            let Ok(url) = reqwest::Url::parse(raw_url) else {
+                continue;
+            };
+            let Some(header_val) = self.jar.cookies(&url) else {
+                continue;
+            };
+            let Ok(cookie_str) = header_val.to_str() else {
+                continue;
+            };
+            for part in cookie_str.split(';') {
+                let trimmed = part.trim();
+                if let Some(val) = trimmed.strip_prefix("zpw_sek=") {
+                    let clean = val.trim();
+                    if !clean.is_empty() && clean != "EXPIRED" {
+                        return Some(clean.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Seed `zpw_sek` into `self.jar` for both `.zaloapp.com` and `.chat.zalo.me` domain families
+    /// and all known Zalo service hosts (#115).
+    pub fn seed_zpw_sek_cookies(&self, v: &str) {
+        if v.is_empty() || v == "EXPIRED" {
             return;
         }
-        // Insert cookie for all required Zalo hosts
+        let domain_seeds = [
+            ("https://wpa.zaloapp.com", "zaloapp.com"),
+            ("https://qr-id.zaloapp.com", "zaloapp.com"),
+            ("https://chat.zalo.me", "chat.zalo.me"),
+            ("https://chat.zalo.me", "zalo.me"),
+        ];
+        for (base_url, domain) in domain_seeds {
+            if let Ok(url) = reqwest::Url::parse(base_url) {
+                self.jar.add_cookie_str(
+                    &format!("zpw_sek={v}; Domain={domain}; Path=/"),
+                    &url,
+                );
+                self.jar.add_cookie_str(
+                    &format!("zpw_sek={v}; Domain=.{domain}; Path=/"),
+                    &url,
+                );
+            }
+        }
         let hosts = [
             "https://chat.zalo.me",
             "https://wpa.zaloapp.com",
+            "https://qr-id.zaloapp.com",
             "https://wpa.chat.zalo.me",
+            "https://tt-profile-wpa.chat.zalo.me",
+            "https://tt-profile-wpa.zaloapp.com",
+            "https://tt-friend-wpa.chat.zalo.me",
+            "https://tt-friend-wpa.zaloapp.com",
+            "https://tt-convers-wpa.chat.zalo.me",
+            "https://tt-conversation-wpa.zaloapp.com",
+            "https://tt-group-wpa.chat.zalo.me",
+            "https://tt-group-wpa.api.zaloapp.com",
+            "https://tt-chat1-wpa.chat.zalo.me",
+            "https://tt-chat2-wpa.chat.zalo.me",
+            "https://tt-chat3-wpa.chat.zalo.me",
+            "https://tt-chat3-wpa.api.zaloapp.com",
+            "https://tt-files-wpa.chat.zalo.me",
+            "https://tt-files-wpa.zaloapp.com",
             "https://tt-sticker-wpa.chat.zalo.me",
             "https://tt-sticker-wpa.zaloapp.com",
             "https://sticker-wpa.chat.zalo.me",
@@ -527,6 +753,7 @@ impl Session {
             &self.domains.profile,
             &self.domains.friend,
             &self.domains.group,
+            &self.domains.file,
             &self.domains.cloud_msg,
             &self.domains.voice_call,
             &self.domains.sticker,
@@ -537,6 +764,20 @@ impl Session {
                 self.jar.add_cookie_str(&cookie, &url);
             }
         }
+        for (_, host) in crate::endpoints::SERVICE_MAP_V3 {
+            if let Ok(url) = reqwest::Url::parse(host) {
+                let cookie = format!("zpw_sek={v}; Path=/");
+                self.jar.add_cookie_str(&cookie, &url);
+            }
+        }
+    }
+
+    /// Store `zpw_sek` session token, attach it to `self.login`, and insert the session cookie.
+    pub fn set_zpw_sek(&mut self, v: String) {
+        if v.is_empty() {
+            return;
+        }
+        self.seed_zpw_sek_cookies(&v);
         self.zpw_sek = Some(v.clone());
         if let Some(ref mut li) = self.login {
             li.zpw_sek = v;
@@ -568,7 +809,7 @@ impl Session {
     /// those (#21). A session with no credentials has nothing to validate and reports
     /// [`SessionStatus::Expired`].
     pub async fn session_status(&self) -> SessionStatus {
-        if self.login.is_none() || self.zpw_sek.is_none() {
+        if self.login.is_none() || self.effective_zpw_sek().is_none() {
             return SessionStatus::Expired;
         }
         let body = serde_json::json!({
@@ -602,7 +843,7 @@ impl Session {
 
     /// Fetch the authenticated user's own numeric `userId` and `displayName` from `/api/social/profile/me-v2`.
     pub async fn sync_profile_me(&mut self) -> Option<(String, String)> {
-        if self.login.is_none() || self.zpw_sek.is_none() {
+        if self.login.is_none() || self.effective_zpw_sek().is_none() {
             return None;
         }
         let body = serde_json::json!({
@@ -660,26 +901,7 @@ impl Session {
         self.secret_key = None;
         self.session_key = None;
         self.jar = Arc::new(Jar::default());
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(
-            REFERER,
-            HeaderValue::from_static("https://chat.zalo.me/"),
-        );
-        default_headers.insert(
-            ORIGIN,
-            HeaderValue::from_static("https://chat.zalo.me"),
-        );
-        if let Ok(c) = Client::builder()
-            .cookie_provider(Arc::clone(&self.jar))
-            .default_headers(default_headers)
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(35))
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-                 (KHTML, like Gecko) ZaloPC/26.10.11 Chrome/122.0.0.0 Electron/29.0.0 Safari/537.36",
-            )
-            .build()
-        {
+        if let Ok(c) = build_http_client(&self.jar, self.proxy_url.as_deref()) {
             self.http = c;
         }
     }
@@ -690,16 +912,39 @@ impl Session {
         let saved = SavedSession {
             imei: self.imei.clone(),
             computer_name: self.computer_name.clone(),
-            secret_key_b64: self.secret_key.as_ref().map(|k| base64::engine::general_purpose::STANDARD.encode(k)),
+            secret_key_b64: self
+                .secret_key
+                .as_ref()
+                .map(|k| base64::engine::general_purpose::STANDARD.encode(k)),
             session_key: self.session_key.clone(),
             zpw_sek: self.zpw_sek.clone(),
             login: self.login.clone(),
             domains: self.domains.clone(),
             expired_at: self.expired_at,
+            proxy_url: self.proxy_url.clone(),
         };
         let text = serde_json::to_string_pretty(&saved)?;
         crate::data_dir::write_private_atomic(std::path::Path::new(path), text.as_bytes())?;
         Ok(())
+    }
+
+    /// Tên máy thật cho sync (phone hiển thị/match theo tên này).
+    /// Ưu tiên `COMPUTERNAME` (Windows) → `HOSTNAME` → `scutil` (macOS).
+    fn real_computer_name() -> String {
+        std::env::var("COMPUTERNAME")
+            .or_else(|_| std::env::var("HOSTNAME"))
+            .ok()
+            .filter(|h| !h.trim().is_empty())
+            .or_else(|| {
+                std::process::Command::new("scutil")
+                    .args(["--get", "ComputerName"])
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|h| h.trim().trim_end_matches(".local").to_string())
+                    .filter(|h| !h.is_empty())
+            })
+            .unwrap_or_else(|| "DESKTOP".into())
     }
 
     /// Load a previously saved session from disk and restore cookies, keys, and endpoints.
@@ -708,12 +953,23 @@ impl Session {
         let text = std::fs::read_to_string(path)?;
         let saved: SavedSession = serde_json::from_str(&text)?;
 
+        if self.proxy_url.is_none() {
+            if let Some(ref p) = saved.proxy_url {
+                let _ = self.set_proxy(Some(p));
+            }
+        }
         self.imei = if saved.imei.len() == 69 {
             saved.imei
         } else {
             random_imei()
         };
-        self.computer_name = saved.computer_name;
+        // Session cũ lưu "DESKTOP" cứng (macOS không có COMPUTERNAME) — thay bằng
+        // hostname thật để phone hiển thị/match đúng tên máy khi sync.
+        self.computer_name = if saved.computer_name.trim().is_empty() || saved.computer_name == "DESKTOP" {
+            Self::real_computer_name()
+        } else {
+            saved.computer_name
+        };
         self.domains = saved.domains;
         // Older sessions stored the long-polling hosts in `chat` / `conversation`
         // when `zpw_chts_new` / `zpw_ctrs_new` overwrote the REST domains. Rescind
@@ -786,8 +1042,8 @@ impl Session {
 
         // Parse to a real JSON object so the dump nests properly instead of holding a
         // double-encoded string.
-        let body_json = serde_json::from_str::<Value>(body)
-            .unwrap_or_else(|_| Value::String(body.to_string()));
+        let body_json =
+            serde_json::from_str::<Value>(body).unwrap_or_else(|_| Value::String(body.to_string()));
 
         let doc = serde_json::json!({
             "method": method,
@@ -863,6 +1119,9 @@ impl Session {
         {
             self.domains.apply_service_map(map);
         }
+        if let Some(sek) = self.effective_zpw_sek() {
+            self.set_zpw_sek(sek);
+        }
     }
 
     pub async fn get(&self, url: &str) -> Result<Value> {
@@ -931,7 +1190,8 @@ impl Session {
                 }
             }
         }
-        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("no host candidates for endpoint {endpoint}")))
+        Err(last_err
+            .unwrap_or_else(|| anyhow::anyhow!("no host candidates for endpoint {endpoint}")))
     }
 
     /// Perform a `GET` request against `endpoint` with multi-candidate host failover (#27).
@@ -989,14 +1249,13 @@ impl Session {
                 "Content-Type",
                 format!("multipart/form-data; boundary={boundary}"),
             );
-        if let Some(sek) = &self.zpw_sek {
-            if !sek.is_empty() {
-                rb = rb
-                    .header("Cookie", format!("zpw_sek={sek}; _zlang=vi"))
-                    .header("zpw_sek", sek)
-                    .header("Origin", "https://chat.zalo.me")
-                    .header("Referer", "https://chat.zalo.me/");
-            }
+        if let Some(sek) = self.effective_zpw_sek() {
+            self.seed_zpw_sek_cookies(&sek);
+            rb = rb
+                .header("Cookie", format!("zpw_sek={sek}; _zlang=vi"))
+                .header("zpw_sek", &sek)
+                .header("Origin", "https://chat.zalo.me")
+                .header("Referer", "https://chat.zalo.me/");
         }
         let resp = rb.body(body).send().await?;
         let latency_ms = start.elapsed().as_millis();
@@ -1028,34 +1287,58 @@ impl Session {
 
     async fn send(&self, m: Method, url: &str, body: Option<String>) -> Result<Value> {
         let start = std::time::Instant::now();
+        if is_url_blocked_by_privacy(url) {
+            let method = m.as_str().to_string();
+            crate::logger::log_request(
+                &method,
+                url,
+                Some(200),
+                0,
+                body.as_deref().unwrap_or(""),
+                Some(r#"{"error_code":0,"error_message":"Blocked by Privacy Guard","data":{}}"#),
+                None,
+            );
+            return Ok(serde_json::json!({
+                "error_code": 0,
+                "error_message": "Blocked by Privacy Guard",
+                "data": {}
+            }));
+        }
         if self.verbose {
-            eprintln!("→ {} {}", m, if self.dump_raw { url.to_string() } else { redact_url(url) });
+            eprintln!(
+                "→ {} {}",
+                m,
+                if self.dump_raw {
+                    url.to_string()
+                } else {
+                    redact_url(url)
+                }
+            );
             if let Some(b) = &body {
                 eprintln!("  body: {}", truncate(b, 400));
             }
         }
         let method = m.as_str().to_string();
         let mut rb = self.http.request(m, url);
-        if let Some(ref sek) = self.zpw_sek {
-            if !sek.is_empty() {
-                let is_zalo_host = reqwest::Url::parse(url)
-                    .map(|u| {
-                        u.host_str()
-                            .map(|h| {
-                                h == "zalo.me"
-                                    || h.ends_with(".zalo.me")
-                                    || h == "zaloapp.com"
-                                    || h.ends_with(".zaloapp.com")
-                            })
-                            .unwrap_or(false)
-                    })
-                    .unwrap_or_else(|_| url.contains("zalo.me") || url.contains("zaloapp.com"));
-                if is_zalo_host {
-                    rb = rb.header("Cookie", format!("zpw_sek={sek}; _zlang=vi"));
-                    rb = rb.header("zpw_sek", sek);
-                    rb = rb.header("Origin", "https://chat.zalo.me");
-                    rb = rb.header("Referer", "https://chat.zalo.me/");
-                }
+        if let Some(sek) = self.effective_zpw_sek() {
+            self.seed_zpw_sek_cookies(&sek);
+            let is_zalo_host = reqwest::Url::parse(url)
+                .map(|u| {
+                    u.host_str()
+                        .map(|h| {
+                            h == "zalo.me"
+                                || h.ends_with(".zalo.me")
+                                || h == "zaloapp.com"
+                                || h.ends_with(".zaloapp.com")
+                        })
+                        .unwrap_or(false)
+                })
+                .unwrap_or_else(|_| url.contains("zalo.me") || url.contains("zaloapp.com"));
+            if is_zalo_host {
+                rb = rb.header("Cookie", format!("zpw_sek={sek}; _zlang=vi"));
+                rb = rb.header("zpw_sek", &sek);
+                rb = rb.header("Origin", "https://chat.zalo.me");
+                rb = rb.header("Referer", "https://chat.zalo.me/");
             }
         }
         if let Some(b) = &body {
@@ -1123,7 +1406,10 @@ impl Session {
         });
         let code = v.get("error_code").and_then(|c| c.as_i64()).unwrap_or(0);
         if code != 0 {
-            let msg = v.get("error_message").and_then(|m| m.as_str()).unwrap_or("");
+            let msg = v
+                .get("error_message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("");
             crate::logger::log_request(
                 &method,
                 url,
@@ -1165,7 +1451,10 @@ impl Session {
                 }
                 Err(e) => {
                     if self.verbose {
-                        eprintln!("  data decrypted but not JSON: {e} / {}", truncate(&pt, 200));
+                        eprintln!(
+                            "  data decrypted but not JSON: {e} / {}",
+                            truncate(&pt, 200)
+                        );
                     }
                     v
                 }
@@ -1217,7 +1506,8 @@ pub fn redact_secret(s: &str) -> String {
     format!("{prefix}…<redacted>")
 }
 
-pub fn urlencode(s: &str) -> String {    let mut out = String::with_capacity(s.len() * 3);
+pub fn urlencode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
     for b in s.bytes() {
         match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
@@ -1518,7 +1808,7 @@ mod tests {
         assert_eq!(
             list,
             vec![
-                "https://tt-chat3-wpa.api.zaloapp.com",
+                "https://tt-chat3-wpa.chat.zalo.me",
                 "https://tt-chat4-wpa.api.zaloapp.com",
                 "https://tt-chat5-wpa.api.zaloapp.com",
                 "https://legacy-saved-chat.zaloapp.com",
@@ -1543,7 +1833,7 @@ mod tests {
                 let tried_inner = tried_c.clone();
                 async move {
                     tried_inner.lock().unwrap().push(url.clone());
-                    if url.starts_with("https://tt-chat3-wpa.api.zaloapp.com") {
+                    if url.starts_with("https://tt-chat3-wpa.chat.zalo.me") {
                         anyhow::bail!("HTTP 404 Not Found from {url}: nginx")
                     } else {
                         Ok(serde_json::json!({ "error_code": 0, "winner": url }))
@@ -1560,7 +1850,7 @@ mod tests {
         assert_eq!(
             *tried.lock().unwrap(),
             vec![
-                "https://tt-chat3-wpa.api.zaloapp.com/api/message/sms?zpw_ver=694",
+                "https://tt-chat3-wpa.chat.zalo.me/api/message/sms?zpw_ver=694",
                 "https://tt-chat4-wpa.api.zaloapp.com/api/message/sms?zpw_ver=694",
             ]
         );
@@ -1611,5 +1901,122 @@ mod tests {
                 "error_code {code} must stop immediately without failover"
             );
         }
+    }
+
+    #[test]
+    fn proxy_url_normalization_and_credential_redaction() {
+        assert_eq!(normalize_proxy_url("   ").unwrap(), None);
+        assert_eq!(
+            normalize_proxy_url("127.0.0.1:8888").unwrap().as_deref(),
+            Some("http://127.0.0.1:8888")
+        );
+        assert_eq!(
+            normalize_proxy_url("http://user:secret123@10.0.0.2:3128")
+                .unwrap()
+                .as_deref(),
+            Some("http://user:secret123@10.0.0.2:3128")
+        );
+        assert!(normalize_proxy_url("ftp://127.0.0.1:21").is_err());
+
+        let redacted = redact_proxy_url("http://admin:super_secret_pw@192.168.1.10:8080");
+        assert!(!redacted.contains("super_secret_pw"));
+        assert!(!redacted.contains("admin"));
+        assert!(redacted.contains("192.168.1.10:8080"));
+    }
+
+    #[test]
+    fn session_set_proxy_rebuilds_client_and_preserves_zpw_sek() {
+        let mut s = Session::new(false, false, false).unwrap();
+        s.set_zpw_sek("sek_token_123".into());
+        let configured = s.set_proxy(Some("http://127.0.0.1:8080")).unwrap();
+        assert_eq!(configured.as_deref(), Some("http://127.0.0.1:8080"));
+        assert_eq!(s.proxy_url.as_deref(), Some("http://127.0.0.1:8080"));
+        assert_eq!(s.zpw_sek.as_deref(), Some("sek_token_123"));
+
+        let cleared = s.set_proxy(None).unwrap();
+        assert!(cleared.is_none());
+        assert!(s.proxy_url.is_none());
+    }
+
+    #[test]
+    fn privacy_blocker_intercepts_typing_delivered_and_seen_endpoints() {
+        set_privacy_blocker(false, false, false);
+        assert!(!is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/typing?zpw_ver=694"
+        ));
+        assert!(!is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/seenv2?zpw_ver=694"
+        ));
+
+        set_privacy_blocker(true, false, true);
+        assert!(is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/typing?zpw_ver=694"
+        ));
+        assert!(is_url_blocked_by_privacy(
+            "https://tt-group-wpa.chat.zalo.me/api/group/typing?zpw_ver=694"
+        ));
+        assert!(is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/seenv2?zpw_ver=694"
+        ));
+        assert!(is_url_blocked_by_privacy(
+            "https://tt-group-wpa.chat.zalo.me/api/group/seenv2?zpw_ver=694"
+        ));
+        assert!(!is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/deliveredv2?zpw_ver=694"
+        ));
+        assert!(!is_url_blocked_by_privacy(
+            "https://tt-chat1-wpa.chat.zalo.me/api/message/sms?zpw_ver=694"
+        ));
+        set_privacy_blocker(false, false, false);
+    }
+
+    #[test]
+    fn zpw_sek_cookie_shared_across_zaloapp_com_and_chat_zalo_me_hosts() {
+        use reqwest::cookie::CookieStore;
+
+        // 1) Setting zpw_sek directly seeds cookies for both .zaloapp.com and .chat.zalo.me hosts (#115).
+        let mut s = Session::new(false, false, false).unwrap();
+        s.set_zpw_sek("sek_qr_115".into());
+        for target in [
+            "https://qr-id.zaloapp.com/polling/qr/pc-status",
+            "https://wpa.zaloapp.com/api/login/getLoginInfo",
+            "https://tt-profile-wpa.chat.zalo.me/api/social/friend/getfriends",
+            "https://tt-profile-wpa.zaloapp.com/api/social/friend/getfriends",
+            "https://tt-friend-wpa.chat.zalo.me/api/friend/list",
+        ] {
+            let url = reqwest::Url::parse(target).unwrap();
+            let cookie_hdr = s
+                .jar
+                .cookies(&url)
+                .and_then(|v| v.to_str().ok().map(str::to_string))
+                .unwrap_or_default();
+            assert!(
+                cookie_hdr.contains("zpw_sek=sek_qr_115"),
+                "expected zpw_sek cookie for {target}, got: {cookie_hdr}"
+            );
+        }
+
+        // 2) When QR login captures Set-Cookie on qr-id.zaloapp.com in jar before set_zpw_sek,
+        // effective_zpw_sek + seed_zpw_sek_cookies propagates it to tt-profile-wpa.chat.zalo.me.
+        let s2 = Session::new(false, false, false).unwrap();
+        let qr_url = reqwest::Url::parse("https://qr-id.zaloapp.com/polling/qr/pc-status").unwrap();
+        s2.jar
+            .add_cookie_str("zpw_sek=sek_from_qr_jar; Path=/", &qr_url);
+        let extracted = s2.effective_zpw_sek();
+        assert_eq!(extracted.as_deref(), Some("sek_from_qr_jar"));
+        s2.seed_zpw_sek_cookies(extracted.as_deref().unwrap());
+
+        let profile_url =
+            reqwest::Url::parse("https://tt-profile-wpa.chat.zalo.me/api/social/friend/getfriends")
+                .unwrap();
+        let profile_cookies = s2
+            .jar
+            .cookies(&profile_url)
+            .and_then(|v| v.to_str().ok().map(str::to_string))
+            .unwrap_or_default();
+        assert!(
+            profile_cookies.contains("zpw_sek=sek_from_qr_jar"),
+            "expected zpw_sek propagated to tt-profile-wpa.chat.zalo.me, got: {profile_cookies}"
+        );
     }
 }

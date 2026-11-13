@@ -1,6 +1,6 @@
 # ctdozlite
 
-**[Tiếng Việt](README.md)** · **[English](README_EN.md)** · **[한국어](README_KO.md)** · **[日本語](README_JA.md)** · **[简体中文](README_ZH.md)**
+**[Tiếng Việt](README.md)** · **[English](docs/i18n/README_EN.md)** · **[한국어](docs/i18n/README_KO.md)** · **[日本語](docs/i18n/README_JA.md)** · **[简体中文](docs/i18n/README_ZH.md)**
 
 
 Client Zalo Desktop viết bằng Rust (`eframe`/`egui` + `ratatui`), giao tiếp trực tiếp với hệ thống API và WebSocket của Zalo Web/PC mà không qua Electron hay Chromium.
@@ -13,7 +13,11 @@ Client Zalo Desktop viết bằng Rust (`eframe`/`egui` + `ratatui`), giao tiế
 
 
 > [!NOTE]
-> **Tuyên bố miễn trừ trách nhiệm (Disclaimer):** Dự án này là một nghiên cứu kỹ thuật hệ thống độc lập mã nguồn mở vì mục đích học tập, giáo dục và tương thích giao thức (*Educational & Interoperability Research Purposes Only*). Dự án **KHÔNG** có bất kỳ mối liên hệ, hợp tác, tài trợ hay bảo trợ nào từ VNG Corporation hay Zalo, và hoàn toàn phi thương mại (100% mã nguồn mở, không thu phí, không quảng cáo, không đóng gói tài nguyên độc quyền). Người dùng tự chịu mọi trách nhiệm khi sử dụng phần mềm này.
+> **Tuyên bố miễn trừ trách nhiệm (Disclaimer):** Dự án này là một nghiên cứu kỹ thuật hệ thống độc lập mã nguồn mở vì mục đích học tập, giáo dục và tương thích giao thức (*Educational & Interoperability Research Purposes Only*). Dự án **KHÔNG** có bất kỳ mối liên hệ, hợp tác, tài trợ hay bảo trợ nào từ VNG Corporation hay Zalo, và **hoàn toàn phi thương mại** (100% mã nguồn mở, không thu phí, không quảng cáo, không bán dữ liệu, không có bất kỳ hình thức kiếm tiền nào).
+>
+> Để hiểu định dạng gói tin và luồng ký request, nhóm phát triển có thực hiện **phân tích tĩnh** (static analysis) trên gói cài đặt **công khai** của Zalo và các thư viện native đi kèm. Kết quả chỉ dùng để **viết lại độc lập** bằng Rust — **không** sao chép, **không** tái phân phối mã máy, mã nguồn JS/WASM hay tài nguyên đồ hoạ/âm thanh nào của Zalo. Chi tiết và giới hạn đầy đủ ở mục **[Phân tích tĩnh & tài nguyên bên thứ ba](#về-phân-tích-tĩnh--tài-nguyên-bên-thứ-ba)**.
+>
+> Người dùng tự chịu mọi trách nhiệm khi sử dụng phần mềm này.
 [![Website](https://img.shields.io/badge/website-ctdozlite.ctdo.net-0068FF.svg)](https://ctdozlite.ctdo.net/)
 [![Release](https://img.shields.io/github/v/release/ctdoteam1110/ctdozlite?label=release)](https://github.com/ctdoteam1110/ctdozlite/releases)
 [![CI & Release](https://github.com/ctdoteam1110/ctdozlite/actions/workflows/ci-release.yml/badge.svg)](https://github.com/ctdoteam1110/ctdozlite/actions/workflows/ci-release.yml)
@@ -29,15 +33,15 @@ Client Zalo Desktop viết bằng Rust (`eframe`/`egui` + `ratatui`), giao tiế
 
 Bản Zalo PC chính thức đóng gói trên Electron thường chiếm 350–600 MB RAM khi chạy nền. `ctdozlite` được viết lại từ đầu bằng Rust dựa trên phân tích luồng giao thức của Zalo Web/PC (`zpw_ver=694`, `zpw_type=30`), tập trung vào tốc độ phản hồi, mức tiêu thụ tài nguyên thấp và khả năng đóng gói thành một binary duy nhất.
 
-| Chỉ số thực tế | Zalo PC 26.10.11 (Electron) | ctdozlite (Rust Native) |
+| Chỉ số thực tế | Zalo PC 26.10.11 (Electron) | ctdozlite (Rust Native — Kết quả đo mới nhất) |
 |---|---|---|
-| **RAM khi chờ (Working Set)** | **1.800 – 1.975 MB** | **~149,5 MB** (tiết kiệm hơn 92% RAM) |
+| **RAM khi chờ (Working Set)** | **1.800 – 1.975 MB** | **~156,1 MB** khi chờ / **~162,1 MB** khi nạp đầy đủ DB & hội thoại *(Private: ~61,6 – 80,4 MB, tiết kiệm >91% RAM)* |
 | **Số tiến trình chạy nền** | 7 tiến trình | **1 tiến trình duy nhất** |
-| **Kích thước file thực thi** | ~136 MB | **~17,2 MB** (bản phát hành strip symbols) |
-| **Thời gian khởi chạy cửa sổ** | 2.5 – 4.0s | **~0,18 – 0,19 giây** (< 200ms) |
+| **Kích thước file thực thi** | ~136 MB | **~47,6 MB** *(Windows release giữ PE symbols tránh false-positive Defender; ~17,2 MB khi strip symbols)* |
+| **Thời gian khởi chạy cửa sổ** | 2.5 – 4.0s | **~0,04 – 0,15 giây** (< 160ms warm start) |
 | **Phụ thuộc runtime** | Chromium, Node.js | Native binary thuần (`ffmpeg` tùy chọn nếu gọi video) |
 
-> *Dữ liệu đo thực tế trên Windows 11 (Intel Core i7-12700H, PowerShell `Get-Process WorkingSet64`, đo trung vị sau 15 giây chạy ổn định ở trạng thái chờ).*
+> *Kết quả đo thực tế mới nhất (cập nhật sau khi tích hợp thêm Wasmtime Sync v2, Rhai Scripting & Document Preview) trên Windows 11 (Intel Core i7-12700H, PowerShell `Get-Process WorkingSet64` & `PrivateMemorySize64`, đo trung vị sau 15 giây chạy ổn định ở bản `--release`). Ở chế độ phát triển (`debug --dev --gui`), Working Set dao động khoảng ~213,8 – 239,5 MB.*
 
 ---
 
@@ -58,6 +62,9 @@ Bản Zalo PC chính thức đóng gói trên Electron thường chiếm 350–6
 - **Lưu trữ cục bộ 2 tầng (`src/store.rs`)**
   - `threads_cache.json`: Snapshot danh sách hội thoại giúp hiển thị giao diện ngay khi mở app.
   - `zalo_history.db` (SQLite): Lưu trữ lịch sử tin nhắn cục bộ trên máy, khử trùng lặp theo `msg_id` và mốc thời gian. Ứng dụng không gửi dữ liệu sang bất kỳ máy chủ bên thứ ba nào ngoài hệ thống Zalo; khuyến nghị bật mã hóa ổ đĩa hệ điều hành (BitLocker / FileVault / LUKS) nếu dùng trên máy chung.
+- **Đồng bộ dữ liệu (`src/history_sync.rs`)**
+  - **Đồng bộ dữ liệu cơ bản:** Đã hoàn thiện tính năng kéo dữ liệu và giải mã tin nhắn. Hiện tại hoạt động tốt và ổn định với Android (qua container `.db.crypt` mã hóa RSA 2048 + AES-256-CBC + LZMA2).
+  - **Tương thích iOS:** Đã hoàn thiện giao thức bắt tay Sync v2 (Curve25519 / X25519 Double-Ratchet), tuy nhiên quy trình nén đa lô của Zalo iOS vẫn đang tiếp tục được hoàn thiện trong các bản cập nhật tiếp theo.
 - **Gọi thoại & Gọi video 1-1 (`src/call.rs`, `src/media.rs`, `src/audio.rs`)**
   - Triển khai trực tiếp luồng báo hiệu cuộc gọi (`401`/`416`/`407`/`402`/`408`/`409`) và bắt tay ZRTP relay bằng Rust, không phụ thuộc `ZaloCall.exe`.
   - Audio hai chiều qua `cpal` + `opus`; video H.264 đóng gói theo khung relay của Zalo (RTP PT 97/98, RTCP SR/PLI/REMB) kết hợp `ffmpeg` để thu webcam và giải mã khung hình.
@@ -67,35 +74,70 @@ Bản Zalo PC chính thức đóng gói trên Electron thường chiếm 350–6
 
 ---
 
-## Cấu trúc mã nguồn
+## Cấu trúc & Quy mô mã nguồn (Codebase LoC — Kết quả đo mới nhất `v0.1.1`)
+
+| Hạng mục | Số tệp | Tổng số dòng |
+| :--- | :---: | :---: |
+| **Rust Source (`src/**/*.rs`)** | 56 | **80,962** |
+| **Integration Tests (`tests/*.rs`)** | 5 | **1,803** |
+| **Tài liệu & Kiến trúc (`docs/*.md`, `README*`)** | 29 | **2,125** |
+| **Đóng gói & CI/CD (`packaging/`, `.github/`)** | 22 | **1,161** |
+
+> Số liệu đo thực tế mới nhất tại phiên bản `v0.1.1` (tổng cộng hơn **86,050+** dòng mã nguồn, bài kiểm thử, tài liệu và quy trình CI/CD).
 
 ```text
-src/
-├── main.rs            # Điểm vào CLI, phân tích tham số khởi chạy (--gui, --tui, --dev, --logout)
-├── lib.rs             # Khai báo các module thư viện
-├── session.rs         # Quản lý phiên, cookie jar (zpw_sek), khóa giải mã (zpw_enk) và bảng domain
-├── crypto.rs          # AES-128/256-CBC, PKCS7, MD5 và hàm tạo chữ ký signkey
-├── param_cipher.rs    # Mã hóa tham số xác thực ParamCipher v2 (zcid, zcid_ext, encrypt_key)
-├── qr.rs              # Luồng sinh mã QR, long-polling chờ quét và xác nhận đăng nhập
-├── login.rs           # Đăng nhập mật khẩu (PasswordCipher), getServerInfo, getLoginInfo
-├── socket.rs          # Kết nối WebSocket thời gian thực (zpw_ws)
-├── chat.rs            # API hội thoại, tin nhắn, nhóm, đính kèm, link preview và tìm kiếm sticker
-├── store.rs           # Lưu trữ SQLite (zalo_history.db) và đồng bộ lịch sử
-├── call.rs            # Báo hiệu VoIP, điều khiển phiên gọi 1-1 và bắt tay ZRTP
-├── media.rs           # Đóng gói/giải mã RTP/RTCP, H.264 FU-A và luồng webcam/video
-├── audio.rs           # Thu/phát âm thanh thời gian thực (cpal + libopus)
-├── voip_log.rs        # Ghi nhận chẩn đoán luồng gói tin RTP/RTCP (voip.log)
-├── logger.rs          # Bộ thu thập log mạng và quét mã lỗi cho chế độ --dev
-├── tui.rs             # Giao diện dòng lệnh (ratatui)
-└── gui/               # Giao diện đồ họa native (eframe/egui)
-    ├── theme.rs       # Bảng màu Dark/Light, vector icon Lucide, nạp font hệ thống
-    ├── stickers.rs    # Sticker picker, auto-suggest khi gõ và bộ lọc nhãn dán
-    ├── worker.rs      # Luồng nền Tokio xử lý lệnh mạng và prefetch ảnh/sticker
-    ├── workspace.rs   # Bố cục cột danh bạ, khung chat chính và ngăn thông tin hội thoại
-    ├── messages.rs    # Render bong bóng tin nhắn, reaction, quote, ảnh clipboard
-    └── modals.rs      # Hộp thoại cài đặt, cuộc gọi, xem ảnh, tra cứu SĐT và Dev Inspector
+src/ (80,962 lines across 56 files)
+├── main.rs            # (369 lines)    Điểm vào CLI, phân tích tham số (--gui, --tui, --dev, --profile, --proxy)
+├── lib.rs             # (50 lines)     Khai báo các module thư viện
+├── chat.rs            # (10,068 lines) API hội thoại, tin nhắn, nhóm, RTF/Markdown, link preview & tìm kiếm sticker
+├── call.rs            # (5,254 lines)  Báo hiệu VoIP, điều khiển phiên gọi 1-1 và bắt tay ZRTP
+├── gui.rs             # (4,432 lines)  Khởi tạo trạng thái ZaloGuiApp, bộ lọc, đồng bộ & vòng lặp sự kiện
+├── store.rs           # (3,618 lines)  Lưu trữ SQLite theo từng tài khoản (accounts/<uin>_history.db)
+├── media.rs           # (3,238 lines)  Đóng gói/giải mã RTP/RTCP, H.264 FU-A và luồng webcam/video
+├── tui.rs             # (2,689 lines)  Giao diện dòng lệnh (ratatui)
+├── session.rs         # (1,888 lines)  Quản lý phiên, cookie jar (zpw_sek), khóa (zpw_enk), proxy & multi-profile
+├── history_sync.rs    # (1,287 lines)  Đồng bộ lịch sử, giải mã RSA 2048 + AES-256 + LZMA2 & Sync v2 Curve25519
+├── feed.rs            # (1,153 lines)  Hồ sơ mạng xã hội & đọc Nhật ký từ SQLite cục bộ
+├── reactions.rs       # (1,097 lines)  Quản lý trạng thái thả cảm xúc (reaction) tin nhắn
+├── zproto_host.rs     # (1,022 lines)  Wasmtime host chạy module libzproto_wasm giải mã Sync v2 di động
+├── updater.rs         # (917 lines)    Tự động kiểm tra, tải và xác thực chữ ký/SHA-256 bản cập nhật GitHub
+├── api_mcp.rs         # (911 lines)    Máy chủ HTTP REST API cục bộ & giao thức MCP (JSON-RPC 2.0)
+├── audio.rs           # (692 lines)    Thu/phát âm thanh thời gian thực (cpal + libopus)
+├── thread_script.rs   # (629 lines)    Engine kịch bản tự động hóa hội thoại (Rhai scripting)
+├── unread.rs          # (627 lines)    Theo dõi bộ đếm tin nhắn chưa đọc và trạng thái tắt thông báo (mute)
+├── voip_log.rs        # (625 lines)    Ghi nhận chẩn đoán luồng gói tin RTP/RTCP (voip.log)
+├── socket.rs          # (624 lines)    Kết nối WebSocket thời gian thực (zpw_ws)
+├── scheduler.rs       # (539 lines)    Bộ lập lịch gửi tin nhắn hẹn giờ & nhắc hẹn cục bộ
+├── media_resources.rs # (447 lines)    Quản lý bộ nhớ đệm tài nguyên đa phương tiện & ảnh
+├── doc_preview.rs     # (447 lines)    Xem trước nội dung tài liệu đính kèm (PDF, DOCX/XML, ZIP)
+├── group_stats.rs     # (442 lines)    Thống kê hoạt động và tương tác trong nhóm chat
+├── qr.rs              # (436 lines)    Luồng sinh mã QR, long-polling chờ quét và xác nhận đăng nhập
+├── data_dir.rs        # (379 lines)    Phân giải thư mục dữ liệu đa nền tảng (--data-dir / --profile)
+├── login.rs           # (367 lines)    Đăng nhập mật khẩu (PasswordCipher), getServerInfo, getLoginInfo
+├── native_notifications.rs # (361 lines) Thông báo native desktop (Windows toast, macOS, Linux notify)
+├── message_model.rs   # (321 lines)    Mô hình định danh và hợp nhất trạng thái tin nhắn
+├── clipboard_dib.rs   # (292 lines)    Đọc ảnh bitmap trực tiếp từ Windows clipboard (CF_DIB)
+├── logger.rs          # (254 lines)    Bộ thu thập log mạng và quét mã lỗi cho chế độ --dev
+├── os_notify.rs       # (248 lines)    Điều phối thông báo hệ điều hành đa nền tảng
+├── group_llm.rs       # (241 lines)    Tóm tắt và hỗ trợ phân tích nội dung nhóm
+├── param_cipher.rs    # (222 lines)    Mã hóa tham số xác thực ParamCipher v2 (zcid, zcid_ext, encrypt_key)
+├── message_navigation.rs # (142 lines) Điều hướng nhanh tới tin nhắn trích dẫn trong hội thoại
+├── crypto.rs          # (132 lines)    AES-128/256-CBC, PKCS7, MD5 và hàm tạo chữ ký signkey
+├── account_manager.rs # (131 lines)    Quản lý đa tài khoản, lưu và chuyển đổi profile tức thì
+├── group_watch.rs     # (119 lines)    Theo dõi sự kiện và từ khóa trong nhóm
+├── clock.rs           # (109 lines)    Đồng hồ hiển thị thời gian và trạng thái hệ thống
+├── ui.rs              # (97 lines)     Thành phần UI chia sẻ giữa các giao diện
+├── endpoints.rs       # (47 lines)     Bảng định tuyến các domain máy chủ Zalo (Service Map)
+├── bin/               # (1,851 lines across 8 diagnostic/CLI probe binaries)
+└── gui/               # Giao diện đồ họa native (eframe/egui — 32,148 lines)
+    ├── modals.rs      # (9,899 lines)  Trang Danh bạ, Nhật ký, Hẹn giờ, Cài đặt, Quản lý tài khoản & Cuộc gọi
+    ├── workspace.rs   # (9,399 lines)  Bố cục thanh điều hướng, cột chat, auto-scroll & khung chat chính
+    ├── worker.rs      # (4,758 lines)  Luồng nền Tokio xử lý lệnh mạng, đồng bộ và prefetch ảnh/sticker
+    ├── messages.rs    # (4,755 lines)  Render bong bóng tin nhắn, Markdown/RTF, reaction, quote, ảnh clipboard
+    ├── stickers.rs    # (1,779 lines)  Sticker picker, auto-suggest & bộ lọc nhãn dán
+    ├── theme.rs       # (1,330 lines)  Bảng màu Dark/Light, vector icon Lucide, nạp font hệ thống
+    └── reactions_dialog.rs # (228 lines) Hộp thoại hiển thị chi tiết danh sách người thả cảm xúc
 ```
-
 ---
 
 ## Tải bản cài đặt dựng sẵn
@@ -257,19 +299,22 @@ Dự án ghi nhận các thành viên có đóng góp mã nguồn tiêu biểu t
 
 | Contributor | GitHub | Đóng góp chính | Khối lượng |
 | :--- | :--- | :--- | :---: |
-| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | Kiến trúc lõi, VoIP call engine, egui framework, Nhật ký Social, đa nền tảng | **> 73,300+ lines** |
+| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | Kiến trúc lõi, VoIP call engine, egui framework, Danh bạ & Nhật ký Social, đa nền tảng & phát hành v0.0.6 | **> 75,600+ lines** |
 | **Đỗ Trung Thành (thanhdo1110)** | [@thanhdo1110](https://github.com/thanhdo1110) | Kiến trúc GUI modular, Atom One Dark, MCP/REST API, Hẹn giờ tin nhắn, Auto-Update GitHub API, xử lý 20+ Issues & phát hành v0.0.5 | **> 35,100+ lines** 🏆 |
-| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | Loạt 7 PRs: Múi giờ OS, tùy biến data-dir, helpers macOS, session atomic, media cache, updater, message state | **> 6,000+ lines** 🏆 |
+| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | Loạt 10 PRs: Múi giờ OS, tùy biến data-dir, helpers macOS, session atomic, media cache, updater, message state, định danh tin nhắn (#61), điều hướng trích dẫn (#60), quyền thông báo macOS (#59) | **> 11,500+ lines** 🏆 |
 | **ngxccc** | [@ngxccc](https://github.com/ngxccc) | Loạt 5 PRs: Tiêu chuẩn kỹ thuật, bảo toàn session an toàn, phân giải domain mạng | **> 3,400+ lines** |
 | **GrootTheDeveloper** | [@GrootTheDeveloper](https://github.com/GrootTheDeveloper) | Loạt 8 PRs: Tối ưu khởi động SQLite, đồng bộ lịch sử nhóm/Cloud (#45), poll timer worker (#46), virtualization chat, lazy load Font CJK | **~950+ lines** |
-
+| **Tuyến Trần (gr219)** | [@gr219](https://github.com/gr219) | PR #85 (chờ sự kiện file_done trước khi gửi đính kèm), PR #99 (sửa lỗi spawn helper thông báo trên ETXTBSY) | **~350+ lines** |
+| **Leoaxo098** | [@Leoaxo098](https://github.com/Leoaxo098) | PR #97: Khóa ô nhập liệu khi thành viên bị hạn chế quyền chat trong nhóm | **~180+ lines** |
+| **hoanglong149** | [@hoanglong149](https://github.com/hoanglong149) | PR #78 & PR #121: Đóng góp mã nguồn nghiên cứu giải mã Sync v2 di động qua WASM / Wasmtime | **~1,200+ lines** |
 > *Ghi chú: Toàn bộ danh sách vinh danh mọi cá nhân đóng góp (báo lỗi, đề xuất tính năng, pull request) được cập nhật công khai tại trang [Người đóng góp](https://ctdozlite.ctdo.net/contributors.html).*
 
 <details>
-<summary><b>👉 Nhấn vào đây để xem toàn bộ danh sách 71 người đóng góp (Community & GitHub)</b></summary>
+<summary><b>👉 Nhấn vào đây để xem toàn bộ danh sách 72 người đóng góp (Community & GitHub)</b></summary>
 
 | # | Người đóng góp | Hạng mục | Đóng góp chi tiết |
 | :---: | :--- | :--- | :--- |
+| 0 | **@gr219** | `GitHub PR` | PR #85: fix(chat): chờ sự kiện `file_done` trước khi gửi đính kèm tập tin bất đồng bộ (`asyncfile/msg`), khắc phục triệt để lỗi HTTP 405 trên nút 📎. |
 | 1 | **Le Nhat** | `Lỗi crash` | Báo cáo lỗi văng app nghiêm trọng khi thực hiện tìm kiếm tên liên hệ hoặc hội thoại trên Windows 11. |
 | 2 | **Ken Đoàn** | `Đồng bộ` | Báo lỗi bấm nút đồng bộ nhưng mãi không đồng bộ được tin nhắn cũ từ máy chủ Zalo. |
 | 3 | **Nguyễn Vang** | `Độ ổn định` | Thử nghiệm bản phát hành đầu tiên và phản hồi về độ ổn định trong quá trình duy trì kết nối chat. |
@@ -334,7 +379,7 @@ Dự án ghi nhận các thành viên có đóng góp mã nguồn tiêu biểu t
 | 62 | **@quangnguyenn98** | `GitHub PR` | PR #26: ci(macos): build native Intel (x86_64) .dmg alongside Apple Silicon |
 | 63 | **Ông An Bà Ngân (@OngAnBaNgan)** | `GitHub Issue` | Issue #34: Rủi ro pháp lý về thương hiệu & bản quyền từ VNG và đề xuất hướng khắc phục (Disclaimer, không đóng gói tài nguyên bản quyền, cam kết phi thương mại). |
 | 64 | **@maiminhdung** | `GitHub Issue` | Issue #33: Báo lỗi phông chữ ở mục đăng nhập và không hiển thị tên/logo ứng dụng khi chuyển tab trên Nobara Linux 44 (GNOME Wayland). |
-| 65 | **Thuong Tin (@thuongtin)** | `GitHub 7 PRs (> 6,000 LoC)` | Tác giả của 7 Pull Requests quan trọng: PR #40 (múi giờ OS), PR #41 (--data-dir), PR #51 (macOS native helpers), PR #52 (session atomic save), PR #53 (media cache & admission), PR #54 (transactional updater), PR #55 (message state & reactions). Đóng góp hơn 6,000 dòng code. |
+| 65 | **Thuong Tin (@thuongtin)** | `GitHub 10 PRs (> 11,500 LoC)` | Tác giả của 10 Pull Requests quan trọng: PR #40 (múi giờ OS), PR #41 (--data-dir), PR #51 (macOS native helpers), PR #52 (session atomic save), PR #53 (media cache & admission), PR #54 (transactional updater), PR #55 (message state & reactions), PR #59 (macOS notification permissions), PR #60 (quote message navigation), PR #61 (exact message identity deduplication). Đóng góp hơn 11,500 dòng code. |
 | 66 | **Dang Phuc An Khang (@GrootTheDeveloper)** | `GitHub 8 PRs (#43–#50, ~950 LoC)` | Đóng góp loạt 8 Pull Requests tối ưu hóa & đồng bộ: Sửa query tin nhắn mới nhất (#43), Tăng tốc mở app với SQLite lớn (#44), Đồng bộ lịch sử nhóm & Cloud (#45), Chuyển poll timer sang worker (#46), Virtualize danh sách chat (#47), Lazy load Font CJK (#48), Sửa icon Windows GNU (#49), Thu nhỏ dung lượng binary release (#50). |
 | 67 | **Đỗ Trung Thành (@thanhdo1110 / DO TRUNG THANH)** | `Core Maintainer (> 35,100 LoC)` | Tái cấu trúc GUI modular, thiết kế Atom One Dark, xây dựng MCP Server & HTTP REST API, hệ thống hẹn giờ gửi tin nhắn, tự động cập nhật qua GitHub Releases API, sửa lỗi trùng tên hội thoại (#63), giải quyết triệt để hơn 20 GitHub Issues và phát hành bản v0.0.5. |
 | 68 | **@congnvp** | `GitHub Issue` | Issue #35: Đề xuất bổ sung máy chủ HTTP REST API cục bộ và giao thức MCP (Model Context Protocol). |
@@ -355,9 +400,16 @@ Dự án ghi nhận các thành viên có đóng góp mã nguồn tiêu biểu t
 ### Về mục đích dự án
 
 - Dự án này được sinh ra với **duy nhất một mục đích**: học hỏi và nghiên cứu kỹ thuật hệ thống (systems engineering research) — cụ thể là tìm hiểu cách một ứng dụng nhắn tin hiện đại vận hành ở tầng giao thức mạng, mã hóa, và kiến trúc desktop native.
-- Toàn bộ mã nguồn được viết lại **từ đầu bằng Rust**, dựa trên quan sát luồng dữ liệu công khai giữa Zalo Web/PC và máy chủ. Dự án **không** decompile, **không** trích xuất, **không** đóng gói lại bất kỳ tài nguyên độc quyền nào của Zalo (không nhúng icon gốc, sticker gốc, âm thanh, hình ảnh hay mã nguồn JS/WASM của Zalo).
+- Toàn bộ mã nguồn được viết lại **từ đầu bằng Rust**. Để hiểu định dạng gói tin, luồng ký request và cách mã hóa tham số, nhóm phát triển có thực hiện **phân tích tĩnh** (đọc và dịch ngược) trên gói cài đặt **công khai** của Zalo cùng các thư viện native đi kèm. Kết quả chỉ dùng làm tài liệu tham chiếu để **viết lại độc lập**; **không** có mã máy, mã nguồn JS/WASM, `.so`, `.dex` hay tệp APK nào của Zalo được sao chép, nhúng hay phân phối lại trong kho mã nguồn này.
 - Chúng tôi **không sở hữu** và **không tuyên bố sở hữu** thương hiệu `Zalo`, logo Zalo, hay bất kỳ tài sản trí tuệ nào của VNG. Tên `Zalo` chỉ được sử dụng với ý nghĩa mô tả (descriptive use) để chỉ rõ phần mềm này **tương thích giao thức với dịch vụ nào**, giúp người dùng hiểu rõ bản chất sản phẩm.
 - Dự án **hoàn toàn phi thương mại**: 100% mã nguồn mở, không thu phí, không quảng cáo, không bán dữ liệu, không có bất kỳ hình thức kiếm tiền nào.
+
+### Về phân tích tĩnh & tài nguyên bên thứ ba
+
+- **Phân tích tĩnh:** các ghi chú trong `re-notes/` ghi lại quá trình đọc gói cài đặt công khai của Zalo và các thư viện native nhằm hiểu định dạng khung gói tin, luồng ký request và cơ chế mã hóa tham số. Đây là hoạt động **nghiên cứu tương thích**, không nhằm sao chép sản phẩm.
+- **Không phân phối lại tài sản của Zalo:** kho mã nguồn **không** chứa tệp APK/XAPK, `.dex`, `.so`, `.class`, JS/WASM hay bất kỳ tài nguyên đồ họa/âm thanh nào của Zalo. Các thư mục giải nén phục vụ nghiên cứu (`xapk_extracted/`, `test_lab/`) nằm **ngoài** kho mã nguồn và không được đưa lên Git.
+- **Bộ nhãn dán "Mèo Ami Bụng Bự" (`src/assets/ami_fat_cat/`):** đây là tác phẩm của **bên thứ ba (họa sĩ gốc)**, **không** phải tài sản của VNG/Zalo và **không** thuộc quyền sở hữu của nhóm phát triển. Bộ ảnh hiện được nhúng để thử nghiệm giao diện; nhóm phát triển **không tuyên bố bất kỳ quyền nào** đối với tác phẩm này và sẽ **gỡ bỏ ngay** nếu chủ sở hữu quyền yêu cầu.
+- **Không phân phối công cụ vượt qua bảo vệ:** dự án không cung cấp công cụ, khóa hay quy trình nhằm vượt qua biện pháp bảo vệ kỹ thuật của máy chủ Zalo. Mọi request đều đi qua đúng luồng xác thực của tài khoản người dùng.
 
 ### Về quyền riêng tư dữ liệu
 

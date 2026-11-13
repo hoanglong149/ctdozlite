@@ -1,12 +1,12 @@
 # ctdozlite
 
-**[Tiếng Việt](README.md)** · **[English](README_EN.md)** · **[한국어](README_KO.md)** · **[日本語](README_JA.md)** · **[简体中文](README_ZH.md)**
+**[Tiếng Việt](../../README.md)** · **[English](README_EN.md)** · **[한국어](README_KO.md)** · **[日本語](README_JA.md)** · **[简体中文](README_ZH.md)**
 
 ElectronやChromiumを使用せず、Rust（`eframe`/`egui` + `ratatui`）を用いてZalo Web/PC APIおよびWebSocketと直接通信する、超軽量な純Rust製Zaloデスクトップクライアントです。
 
 - **プロジェクト公式サイト（ダウンロード）:** [https://ctdozlite.ctdo.net/](https://ctdozlite.ctdo.net/)
 - **公式リリースパッケージ:** [https://github.com/ctdoteam1110/ctdozlite/releases](https://github.com/ctdoteam1110/ctdozlite/releases)
-- **ドキュメント・トラブルシューティング:** [機能と制限事項](docs/TINH_NANG.md) · [既知の問題](docs/DA_BIET.md) · [トラブルシューティング](docs/KHAC_PHUC_SU_CO.md)
+- **ドキュメント・トラブルシューティング:** [機能と制限事項](../TINH_NANG.md) · [既知の問題](../DA_BIET.md) · [トラブルシューティング](../KHAC_PHUC_SU_CO.md)
 
 ---
 
@@ -72,9 +72,9 @@ cargo build --release
 
 | 貢献者 | GitHub | 主な担当領域 | コントリビューション規模 |
 | :--- | :--- | :--- | :---: |
-| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | コアアーキテクチャ、VoIP通話エンジン、eguiフレームワーク、ソーシャルフィード、マルチOS対応 | **> 73,300+ 行** |
-| **Đỗ Trung Thành (thanhdo1110)** | [@thanhdo1110](https://github.com/thanhdo1110) | モジュラーGUIリファクタリング、Atom One Dark、MCP/REST API、予約送信、GitHub API自動更新、20件以上のIssue修正とv0.0.5リリース | **> 35,100+ 行** 🏆 |
-| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | 7件のPR: OSタイムゾーン、データディレクトリ、macOSヘルパー、セッションアトミック保存、メディアキャッシュ、アップデータ、メッセージモデル | **> 6,000+ 行** 🏆 |
+| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | コアアーキテクチャ、VoIP通話エンジン、eguiフレームワーク、連絡先＆ソーシャルフィード、マルチOS対応、v0.1.0リリース | **> 75,600+ 行** |
+| **Đỗ Trung Thành (thanhdo1110)** | [@thanhdo1110](https://github.com/thanhdo1110) | モジュラーGUIリファクタリング、Atom One Dark、MCP/REST API、予約送信、GitHub API自動更新、25件以上のIssue修正とv0.1.0リリース | **> 35,600+ 行** 🏆 |
+| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | 10件のPR: OSタイムゾーン、データディレクトリ、macOSヘルパー、セッションアトミック保存、メディアキャッシュ、アップデータ、メッセージモデル、メッセージ識別子重複排除 (#61)、引用元ジャンプ (#60)、macOS通知権限 (#59) | **> 11,500+ 行** 🏆 |
 | **ngxccc** | [@ngxccc](https://github.com/ngxccc) | 5件のPR: エンジニアリング基準策定、セッション安全性向上、ネットワークドメイン解決 | **> 3,400+ 行** |
 | **GrootTheDeveloper** | [@GrootTheDeveloper](https://github.com/GrootTheDeveloper) | 8件のPR: SQLite高速起動最適化、履歴同期再開(#45)、ワーカーポーリング(#46)、チャット描画仮想化、CJKフォント遅延読み込み | **~950+ 行** |
 
@@ -92,7 +92,8 @@ cargo build --release
 ### 本プロジェクトの目的
 
 - 本プロジェクトは **ただ一つの目的** のために存在します。それは学習とシステムエンジニアリング研究であり、現代のメッセージングアプリがネットワークプロトコル、暗号化、ネイティブデスクトップアーキテクチャの各層でどのように動作するかを理解することです。
-- すべてのソースコードは、Zalo Web/PC とサーバー間の公開データフローを観察して **Rust でゼロから記述** されています。本プロジェクトは Zalo の独自資産（オリジナルのアイコン、スタンプ、音声、画像、JS/WASM コード）を **逆コンパイル、抽出、再配布することはありません**。
+- すべてのソースコードは **Rust でゼロから記述** されています。パケットのフレーミング、リクエスト署名、パラメータのエンコード方式を理解するため、メンテナは **公開配布されている** Zalo インストーラおよび同梱のネイティブライブラリに対して **静的解析**（閲覧および逆コンパイル）を行いました。その結果は **独立した再実装のための参考資料としてのみ** 使用され、Zalo の機械語コード、JS/WASM ソース、`.so`、`.dex`、APK ファイルは本リポジトリに複製・埋め込み・再配布されていません。解析用に展開したディレクトリ（`xapk_extracted/`、`test_lab/`）はリポジトリの **外** にあり、コミットされません。
+- **第三者著作物に関する表示:** `src/assets/ami_fat_cat/` に同梱されているスタンプセットは **第三者（原作者）の著作物** です。VNG/Zalo の資産ではなく、当方はこれに関するいかなる権利も主張しません。UI テスト目的でのみ同梱しており、権利者からの要請があれば直ちに削除します。
 - 当方は `Zalo` の商標、ロゴ、その他 VNG の知的財産を **所有しておらず、所有権を主張しません**。`Zalo` という名称は、本ソフトウェアが **どのサービスのプロトコルと互換性があるか** を示すための記述的用途にのみ使用されています。
 - 本プロジェクトは **完全に非営利** です。100% オープンソース、料金なし、広告なし、データ販売なし。
 
@@ -109,4 +110,5 @@ VNG Corporation または Zalo の権限ある代理人が本プロジェクト�
 
 ## 📜 ライセンス
 
-本ソフトウェアは **[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE)** のデュアルライセンスの下で配布されています。学術目的およびシステムプログラミングの研究として開発されています。
+本ソフトウェアは **[MIT](../../LICENSE-MIT) OR [Apache-2.0](../../LICENSE-APACHE)** のデュアルライセンスの下で配布されています。学術目的およびシステムプログラミングの研究として開発されています。
+

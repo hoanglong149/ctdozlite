@@ -11,15 +11,15 @@ pub const SERVICE_MAP_V3: &[(&str, &str)] = &[
     ("profile", "https://tt-profile-wpa.chat.zalo.me"),
     ("friend", "https://tt-friend-wpa.chat.zalo.me"),
     ("conversation", "https://tt-convers-wpa.chat.zalo.me"),
-    ("chat", "https://tt-chat3-wpa.api.zaloapp.com"),
-    ("group", "https://tt-group-wpa.zaloapp.com"),
+    ("chat", "https://tt-chat3-wpa.chat.zalo.me"),
+    ("group", "https://tt-group-wpa.chat.zalo.me"),
     ("sticker", "https://tt-sticker-wpa.chat.zalo.me"),
     ("alias", "https://tt-alias-wpa.chat.zalo.me"),
     ("label", "https://label-wpa.chat.zalo.me"),
-    ("reaction", "https://reaction.api.zaloapp.com"),
+    ("reaction", "https://reaction.chat.zalo.me"),
     ("emoji_status", "https://emoji-status.chat.zalo.me"),
     ("zcloud", "https://zcld.chat.zalo.me"),
-    ("file", "https://tt-files-wpa.zaloapp.com"),
+    ("file", "https://tt-files-wpa.chat.zalo.me"),
     ("voice_call", "https://voicecall-wpa.chat.zalo.me"),
 ];
 
@@ -34,6 +34,18 @@ pub const AUTH: &str = "https://wpa.zaloapp.com";
 
 /// Base host that serves `getServerInfo` for an authenticated web session.
 pub const WPA_CHAT: &str = "https://wpa.chat.zalo.me";
+
+/// Group board (pinned messages / notes / reminders). Zalo PC resolves this through
+/// `apiGroupBoard = https://groupboard-wpa.api.${domain}`; web sessions answer on the
+/// `chat.zalo.me` flavour, which is what the live capture came from (`friendboard-wpa.chat.zalo.me`).
+pub const GROUP_BOARD: &str = "https://groupboard-wpa.chat.zalo.me";
+
+/// Friend board (pinned messages in a 1-1 chat). Confirmed by a live Zalo Web capture:
+/// `GET https://friendboard-wpa.chat.zalo.me/api/friendboard/create?...&params=<AES>`.
+pub const FRIEND_BOARD: &str = "https://friendboard-wpa.chat.zalo.me";
+
+/// Legacy board host (`apiBoardDomain`); kept as a fallback for `/api/board/pin`.
+pub const BOARD: &str = "https://board-wpa.chat.zalo.me";
 
 /// Look up a service domain by key.
 pub fn service(key: &str) -> Option<&'static str> {

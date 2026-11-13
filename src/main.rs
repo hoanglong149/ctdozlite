@@ -11,7 +11,7 @@
 use anyhow::Result;
 use session::Session;
 pub use zalo_rust::{
-    api_mcp, audio, call, chat, clock, crypto, data_dir, endpoints, feed, gui, history_sync,
+    account_manager, api_mcp, audio, call, chat, clock, crypto, data_dir, endpoints, feed, gui, history_sync,
     logger, login, media, media_resources, message_model, param_cipher, qr, reactions, scheduler,
     session, socket, store, tui, ui, unread, updater, voip_log,
 };
@@ -110,6 +110,14 @@ async fn main() -> Result<()> {
                 .ok()
                 .and_then(|v| v.parse::<u16>().ok())
         });
+    let cli_proxy: Option<String> = args
+        .iter()
+        .position(|a| a == "--proxy")
+        .and_then(|i| args.get(i + 1).cloned())
+        .or_else(|| {
+            args.iter()
+                .find_map(|a| a.strip_prefix("--proxy=").map(str::to_string))
+        });
 
     if force_logout {
         let _ = std::fs::remove_file("session.json");
@@ -131,6 +139,14 @@ async fn main() -> Result<()> {
     }
 
     let mut s = Session::new(dev_mode, dump, dump_raw)?;
+    if let Some(ref p) = cli_proxy {
+        if let Some(norm) = s.set_proxy(Some(p))? {
+            println!(
+                "🌐 Đã kích hoạt Proxy cho phiên này: {}",
+                session::redact_proxy_url(&norm)
+            );
+        }
+    }
 
     // Attempt to restore persistent session from disk
     let session_restored = if !force_logout {
@@ -206,8 +222,11 @@ async fn main() -> Result<()> {
         };
 
         let mut initial_threads = chat::load_threads_cache();
+        // Hydrate từ đúng account DB (read-point/vanish/note lưu theo acc, #119).
+        let startup_uin = s.login.as_ref().map(|l| l.uin.as_str()).unwrap_or("");
+        let startup_db = store::db_path_for_account(startup_uin);
         store::load_history_into_threads(
-            "zalo_history.db",
+            &startup_db,
             &mut initial_threads,
             store::MessageStore::PRELOAD_MSGS,
         );
@@ -336,7 +355,9 @@ async fn main() -> Result<()> {
 
     // Fetch initial threads and hydrate with local SQLite history
     let mut initial_threads = chat::load_threads_cache();
-    store::load_history_into_threads("zalo_history.db", &mut initial_threads, 200);
+    let tui_uin = s.login.as_ref().map(|l| l.uin.as_str()).unwrap_or("");
+    let tui_db = store::db_path_for_account(tui_uin);
+    store::load_history_into_threads(&tui_db, &mut initial_threads, 200);
     if s.login.is_some() && server_ok {
         match chat::get_friends(&s).await {
             Ok(list) => {

@@ -1,12 +1,12 @@
 # ctdozlite
 
-**[Tiếng Việt](README.md)** · **[English](README_EN.md)** · **[한국어](README_KO.md)** · **[日本語](README_JA.md)** · **[简体中文](README_ZH.md)**
+**[Tiếng Việt](../../README.md)** · **[English](README_EN.md)** · **[한국어](README_KO.md)** · **[日本語](README_JA.md)** · **[简体中文](README_ZH.md)**
 
 一个完全使用 Rust (`eframe`/`egui` + `ratatui`) 编写的极轻量 Zalo 桌面客户端。直接与 Zalo Web/PC API 及 WebSocket 服务通信，不依赖 Electron 或 Chromium。
 
 - **项目官网 (主页与快速下载):** [https://ctdozlite.ctdo.net/](https://ctdozlite.ctdo.net/)
 - **预构建安装包 (GitHub Releases):** [https://github.com/ctdoteam1110/ctdozlite/releases](https://github.com/ctdoteam1110/ctdozlite/releases)
-- **文档与故障排除:** [功能与限制说明](docs/TINH_NANG.md) · [已知问题](docs/DA_BIET.md) · [故障排除指南](docs/KHAC_PHUC_SU_CO.md)
+- **文档与故障排除:** [功能与限制说明](../TINH_NANG.md) · [已知问题](../DA_BIET.md) · [故障排除指南](../KHAC_PHUC_SU_CO.md)
 
 ---
 
@@ -72,9 +72,9 @@ cargo build --release
 
 | 贡献者 | GitHub | 核心职责 | 贡献代码量 |
 | :--- | :--- | :--- | :---: |
-| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | 核心协议架构、VoIP 通话引擎、egui 客户端框架、社交动态页、跨平台编译 | **> 73,300+ 行** |
-| **Đỗ Trung Thành (thanhdo1110)** | [@thanhdo1110](https://github.com/thanhdo1110) | 模块化 GUI 重构、Atom One Dark 设计系统、MCP/REST API、定时消息、GitHub API 自动更新、修复 20+ 项 Issue 并发布 v0.0.5 | **> 35,100+ 行** 🏆 |
-| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | 提交 7 项 PR：本地时区修复、数据目录沙箱、macOS 辅助组件、会话原子写入、媒体缓存、自动更新器、消息状态模型 | **> 6,000+ 行** 🏆 |
+| **TIPC1110** | [@TIPC1110](https://github.com/TIPC1110) | 核心协议架构、VoIP 通话引擎、egui 客户端框架、通讯录与社交动态页、跨平台编译及 v0.1.0 发布 | **> 75,600+ 行** |
+| **Đỗ Trung Thành (thanhdo1110)** | [@thanhdo1110](https://github.com/thanhdo1110) | 模块化 GUI 重构、Atom One Dark 设计系统、MCP/REST API、定时消息、GitHub API 自动更新、修复 25+ 项 Issue 并发布 v0.1.0 | **> 35,600+ 行** 🏆 |
+| **Thuong Tin** | [@thuongtin](https://github.com/thuongtin) | 提交 10 项 PR：本地时区修复、数据目录沙箱、macOS 辅助组件、会话原子写入、媒体缓存、自动更新器、消息状态模型、消息精准唯一标识合并不重复 (#61)、引用跳转定位 (#60)、macOS 通知权限管理 (#59) | **> 11,500+ 行** 🏆 |
 | **ngxccc** | [@ngxccc](https://github.com/ngxccc) | 提交 5 项 PR：工程化规范设计、会话安全保护、网络域名动态解析 | **> 3,400+ 行** |
 | **GrootTheDeveloper** | [@GrootTheDeveloper](https://github.com/GrootTheDeveloper) | 提交 8 项 PR：SQLite 启动性能调优、群组/云端历史断点同步(#45)、后台轮询计时器(#46)、消息虚拟化渲染、CJK 字体按需加载 | **~950+ 行** |
 
@@ -92,7 +92,8 @@ cargo build --release
 ### 关于本项目的目的
 
 - 本项目存在的 **唯一目的** 是学习与系统级工程研究，即理解现代即时通讯应用在网络协议、加密以及原生桌面架构层面是如何运作的。
-- 所有源代码均基于对 Zalo Web/PC 与服务器之间公开数据流的观察，**使用 Rust 从零编写**。本项目 **不会** 反编译、提取或重新打包任何 Zalo 专有资源（不内置原始图标、贴纸、音频、图像或 Zalo 的 JS/WASM 代码）。
+- 所有源代码均 **使用 Rust 从零编写**。为理解数据包的帧结构、请求签名与参数编码方式，维护者对 **公开发布** 的 Zalo 安装包及其附带的原生库进行了 **静态分析**（阅读与反编译）。分析结果 **仅作为独立重写的参考**，本仓库不复制、不嵌入、不再分发任何 Zalo 机器码、JS/WASM 源码、`.so`、`.dex` 或 APK 文件。用于分析的解包目录（`xapk_extracted/`、`test_lab/`）位于仓库 **之外**，从不提交。
+- **第三方素材声明：** `src/assets/ami_fat_cat/` 中的贴纸集是 **第三方（原作者）** 的作品，并非 VNG/Zalo 的资产，我方不主张任何相关权利。该素材仅用于界面测试，若权利人提出要求，将立即移除。
 - 我们 **不拥有** 也 **不主张拥有** `Zalo` 商标、Logo 或任何 VNG 知识产权。`Zalo` 名称仅作描述性使用，用于说明本软件 **与哪个服务的协议相兼容**，以便用户理解产品性质。
 - 本项目 **完全非商业**：100% 开源、不收费、无广告、不出售数据、无任何形式的盈利。
 
@@ -109,4 +110,5 @@ cargo build --release
 
 ## 📜 开源许可证
 
-本项目基于 **[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE)** 双重开源许可证分发。项目仅用于学术交流及系统级网络工程研究。
+本项目基于 **[MIT](../../LICENSE-MIT) OR [Apache-2.0](../../LICENSE-APACHE)** 双重开源许可证分发。项目仅用于学术交流及系统级网络工程研究。
+

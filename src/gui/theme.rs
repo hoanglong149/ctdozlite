@@ -23,6 +23,7 @@ pub(super) struct ThemePalette {
     pub(super) accent_online: Color32,
     pub(super) danger: Color32,
     pub(super) warning: Color32,
+    pub(super) primary_fg: Color32,
     pub(super) bubble_out_bg: Color32,
     pub(super) bubble_out_text: Color32,
     pub(super) bubble_out_meta: Color32,
@@ -32,63 +33,84 @@ pub(super) struct ThemePalette {
     pub(super) bubble_in_meta: Color32,
 }
 
+pub(crate) fn relative_luminance(c: Color32) -> f32 {
+    let srgb_to_linear = |v: u8| -> f32 {
+        let vf = v as f32 / 255.0;
+        if vf <= 0.04045 {
+            vf / 12.92
+        } else {
+            ((vf + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * srgb_to_linear(c.r()) + 0.7152 * srgb_to_linear(c.g()) + 0.0722 * srgb_to_linear(c.b())
+}
+
+pub(crate) fn contrast_ratio(c1: Color32, c2: Color32) -> f32 {
+    let l1 = relative_luminance(c1);
+    let l2 = relative_luminance(c2);
+    (l1.max(l2) + 0.05) / (l1.min(l2) + 0.05)
+}
+
 impl ThemePalette {
     pub(super) fn dark() -> Self {
-        // Official Atom One Dark (`one-dark-ui` + `one-dark-syntax`) color system
+        // Zalo PC dark tokens
         Self {
             is_dark: true,
-            bg_app: Color32::from_rgb(24, 26, 31),          // #181A1F Activity Bar & Title Bar
-            bg_sidebar: Color32::from_rgb(33, 37, 43),      // #21252B Tree-View / Sidebar / Header
-            bg_chat_canvas: Color32::from_rgb(40, 44, 52),  // #282C34 Atom One Dark Editor Canvas
-            bg_elevated: Color32::from_rgb(44, 49, 58),     // #2C313A Elevated Card / Modal / Popover
-            bg_hover: Color32::from_rgb(50, 56, 66),        // #323842 List Hover Surface
-            bg_selected: Color32::from_rgb(58, 63, 75),     // #3A3F4B Active Selection Row
-            bg_input: Color32::from_rgb(29, 31, 35),        // #1D1F23 Input / Search Well
-            border: Color32::from_rgb(52, 57, 66),          // #343942 Subtle Panel Divider
-            text_primary: Color32::from_rgb(215, 218, 224), // #D7DAE0 Bright Foreground
-            text_secondary: Color32::from_rgb(171, 178, 191), // #ABB2BF Atom @mono-1
-            text_muted: Color32::from_rgb(118, 126, 142),   // #767E8E Atom @mono-3 (readable muted)
-            primary: Color32::from_rgb(82, 139, 255),       // #528BFF Atom UI Accent Blue
-            primary_hover: Color32::from_rgb(97, 175, 239), // #61AFEF Atom @hue-2 Cyan-Blue
-            accent_online: Color32::from_rgb(152, 195, 121), // #98C379 Atom @hue-4 Green
-            danger: Color32::from_rgb(224, 108, 117),       // #E06C75 Atom @hue-5 Coral Red
-            warning: Color32::from_rgb(229, 192, 123),      // #E5C07B Atom @hue-62 Warm Gold
-            bubble_out_bg: Color32::from_rgb(37, 55, 77),   // #25374D Zalo Dark Slate-Navy Outgoing Bubble
-            bubble_out_text: Color32::from_rgb(235, 240, 246), // #EBF0F6
-            bubble_out_meta: Color32::from_rgb(154, 171, 192), // #9AABC0
-            bubble_in_bg: Color32::from_rgb(50, 56, 66),    // #323842 Atom Elevated Incoming Bubble
-            bubble_in_border: Color32::from_rgb(62, 68, 81), // #3E4451 Atom Gutter Border
-            bubble_in_text: Color32::from_rgb(215, 218, 224), // #D7DAE0
-            bubble_in_meta: Color32::from_rgb(142, 150, 165), // #8E96A5
+            bg_app: Color32::from_rgb(34, 38, 43), // #22262B
+            bg_sidebar: Color32::from_rgb(34, 38, 43), // #22262B
+            bg_chat_canvas: Color32::from_rgb(29, 32, 37), // #1D2025
+            bg_elevated: Color32::from_rgb(40, 45, 51), // #282D33
+            bg_hover: Color32::from_rgb(46, 51, 58),
+            bg_selected: Color32::from_rgb(31, 52, 77), // #1F344D selected row
+            bg_input: Color32::from_rgb(40, 45, 51), // #282D33
+            border: Color32::from_rgb(55, 61, 69),
+            text_primary: Color32::from_rgb(230, 233, 238),
+            text_secondary: Color32::from_rgb(170, 178, 190),
+            text_muted: Color32::from_rgb(139, 150, 167), // #8B96A7
+            primary: Color32::from_rgb(51, 132, 255), // #3384FF
+            primary_hover: Color32::from_rgb(102, 166, 255), // #66A6FF
+            accent_online: Color32::from_rgb(55, 179, 97), // #37B361
+            danger: Color32::from_rgb(233, 73, 73), // #E94949
+            warning: Color32::from_rgb(229, 192, 123),
+            primary_fg: Color32::WHITE,
+            bubble_out_bg: Color32::from_rgb(31, 52, 77), // #1F344D
+            bubble_out_text: Color32::from_rgb(235, 240, 246),
+            bubble_out_meta: Color32::from_rgb(154, 171, 192),
+            bubble_in_bg: Color32::from_rgb(40, 45, 51), // #282D33
+            bubble_in_border: Color32::from_rgb(55, 61, 69),
+            bubble_in_text: Color32::from_rgb(230, 233, 238),
+            bubble_in_meta: Color32::from_rgb(139, 150, 167),
         }
     }
 
     pub(super) fn light() -> Self {
+        // Zalo PC light tokens
         Self {
             is_dark: false,
-            bg_app: Color32::from_rgb(255, 255, 255),      // #FFFFFF
-            bg_sidebar: Color32::from_rgb(255, 255, 255),  // #FFFFFF
-            bg_chat_canvas: Color32::from_rgb(235, 240, 247), // Authentic Zalo PC cool blue-gray canvas
-            bg_elevated: Color32::from_rgb(255, 255, 255), // #FFFFFF
-            bg_hover: Color32::from_rgb(241, 245, 249),    // #F1F5F9
-            bg_selected: Color32::from_rgb(229, 241, 255), // #E5F1FF Zalo active row
-            bg_input: Color32::from_rgb(248, 250, 252),    // #F8FAFC
-            border: Color32::from_rgb(226, 232, 240),      // #E2E8F0
-            text_primary: Color32::from_rgb(15, 23, 42),   // #0F172A (16.1:1 contrast)
-            text_secondary: Color32::from_rgb(71, 85, 105), // #475569 (7.2:1 contrast)
-            text_muted: Color32::from_rgb(100, 116, 139),  // #64748B (4.6:1 contrast)
-            primary: Color32::from_rgb(0, 104, 255),       // #0068FF Zalo Blue
-            primary_hover: Color32::from_rgb(37, 99, 235), // #2563EB
-            accent_online: Color32::from_rgb(5, 150, 105), // #059669 Emerald
-            danger: Color32::from_rgb(220, 38, 38),        // #DC2626
-            warning: Color32::from_rgb(217, 119, 6),       // #D97706
-            bubble_out_bg: Color32::from_rgb(229, 239, 255), // Zalo Desktop Light Outgoing (#E5EFFF)
-            bubble_out_text: Color32::from_rgb(15, 23, 42),  // Crisp dark text on light blue (14:1)
-            bubble_out_meta: Color32::from_rgb(71, 92, 122),
+            bg_app: Color32::from_rgb(255, 255, 255), // #FFFFFF
+            bg_sidebar: Color32::from_rgb(255, 255, 255),
+            bg_chat_canvas: Color32::from_rgb(255, 255, 255),
+            bg_elevated: Color32::from_rgb(255, 255, 255),
+            bg_hover: Color32::from_rgb(241, 242, 244), // #F1F2F4
+            bg_selected: Color32::from_rgb(229, 241, 255), // #E5F1FF
+            bg_input: Color32::from_rgb(255, 255, 255),
+            border: Color32::from_rgb(229, 231, 235), // #E5E7EB
+            text_primary: Color32::from_rgb(8, 27, 58), // #081B3A
+            text_secondary: Color32::from_rgb(90, 105, 129), // #5A6981
+            text_muted: Color32::from_rgb(99, 113, 136), // #637188 (~5.4:1 trên trắng)
+            primary: Color32::from_rgb(0, 104, 255), // #0068FF
+            primary_hover: Color32::from_rgb(0, 88, 220),
+            accent_online: Color32::from_rgb(55, 179, 97), // #37B361
+            danger: Color32::from_rgb(195, 24, 24), // #C31818
+            warning: Color32::from_rgb(217, 119, 6),
+            primary_fg: Color32::WHITE,
+            bubble_out_bg: Color32::from_rgb(229, 241, 255), // #E5F1FF
+            bubble_out_text: Color32::from_rgb(8, 27, 58),
+            bubble_out_meta: Color32::from_rgb(90, 105, 129),
             bubble_in_bg: Color32::WHITE,
-            bubble_in_border: Color32::from_rgb(216, 224, 236),
-            bubble_in_text: Color32::from_rgb(15, 23, 42),
-            bubble_in_meta: Color32::from_rgb(100, 116, 139),
+            bubble_in_border: Color32::from_rgb(229, 231, 235), // #E5E7EB
+            bubble_in_text: Color32::from_rgb(8, 27, 58),
+            bubble_in_meta: Color32::from_rgb(99, 113, 136),
         }
     }
 
@@ -105,10 +127,12 @@ impl ThemePalette {
         visuals.extreme_bg_color = self.bg_input;
         visuals.faint_bg_color = self.bg_hover;
         visuals.override_text_color = Some(self.text_primary);
-        visuals.selection.bg_fill = self.primary.linear_multiply(if self.is_dark { 0.45 } else { 0.22 });
+        visuals.selection.bg_fill =
+            self.primary
+                .linear_multiply(if self.is_dark { 0.45 } else { 0.22 });
         visuals.selection.stroke = Stroke::new(1.5_f32, self.primary);
 
-        let r = Rounding::same(8.0);
+        let r = Rounding::same(6.0);
         visuals.widgets.noninteractive.bg_fill = self.bg_app;
         visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, self.border);
         visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, self.text_primary);
@@ -129,20 +153,27 @@ impl ThemePalette {
         visuals.widgets.active.bg_fill = self.primary;
         visuals.widgets.active.weak_bg_fill = self.primary;
         visuals.widgets.active.bg_stroke = Stroke::new(1.5_f32, self.primary);
-        visuals.widgets.active.fg_stroke = Stroke::new(1.5_f32, Color32::WHITE);
+        visuals.widgets.active.fg_stroke = Stroke::new(1.5_f32, self.primary_fg);
         visuals.widgets.active.rounding = r;
 
-        style.spacing.item_spacing = Vec2::new(8.0, 6.0);
+        style.spacing.item_spacing = Vec2::new(8.0, 8.0);
         style.spacing.button_padding = Vec2::new(10.0, 6.0);
         style.spacing.scroll = egui::style::ScrollStyle::solid();
         style.spacing.scroll.bar_width = 6.0;
+        style.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+        style.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.5));
+        style.text_styles.insert(egui::TextStyle::Small, egui::FontId::proportional(11.5));
         style.visuals = visuals;
         ctx.set_style(style);
     }
 
     /// Load either the built-in dark/light palette or apply custom overrides from `theme.json` (#7).
     pub(super) fn load_with_custom_override(dark_mode: bool) -> Self {
-        let mut base = if dark_mode { Self::dark() } else { Self::light() };
+        let mut base = if dark_mode {
+            Self::dark()
+        } else {
+            Self::light()
+        };
         if let Ok(raw) = std::fs::read_to_string("theme.json") {
             base.apply_json_overrides(&raw);
         }
@@ -231,6 +262,82 @@ impl ThemePalette {
         let text = serde_json::to_string_pretty(&doc).unwrap_or_default();
         std::fs::write(path, text)
     }
+
+    /// Apply custom color overrides (primary, accent, outbound/inbound bubble backgrounds) (#7, R2).
+    pub(super) fn apply_custom_colors(
+        &mut self,
+        primary_hex: Option<&str>,
+        accent_hex: Option<&str>,
+        bubble_out_hex: Option<&str>,
+        bubble_in_hex: Option<&str>,
+    ) {
+        if let Some(hex) = primary_hex {
+            if let Some(c) = parse_hex_color(hex).filter(|c| c.a() == u8::MAX) {
+                self.primary = c;
+                self.primary_hover = Color32::from_rgb(
+                    c.r().saturating_add(25),
+                    c.g().saturating_add(25),
+                    c.b().saturating_add(25),
+                );
+                self.primary_fg = if contrast_ratio(Color32::WHITE, c)
+                    >= contrast_ratio(Color32::from_rgb(15, 23, 42), c)
+                {
+                    Color32::WHITE
+                } else {
+                    Color32::from_rgb(15, 23, 42)
+                };
+            }
+        }
+        if let Some(hex) = accent_hex {
+            if let Some(c) = parse_hex_color(hex).filter(|c| c.a() == u8::MAX) {
+                self.accent_online = c;
+            }
+        }
+        if let Some(hex) = bubble_out_hex {
+            if let Some(c) = parse_hex_color(hex).filter(|c| c.a() == u8::MAX) {
+                self.bubble_out_bg = c;
+                let dark_text = Color32::from_rgb(15, 23, 42);
+                let light_text = Color32::from_rgb(235, 240, 246);
+                self.bubble_out_text =
+                    if contrast_ratio(dark_text, c) >= contrast_ratio(light_text, c) {
+                        dark_text
+                    } else {
+                        light_text
+                    };
+
+                let dark_meta = Color32::from_rgb(71, 92, 122);
+                let light_meta = Color32::from_rgb(154, 171, 192);
+                self.bubble_out_meta =
+                    if contrast_ratio(dark_meta, c) >= contrast_ratio(light_meta, c) {
+                        dark_meta
+                    } else {
+                        light_meta
+                    };
+            }
+        }
+        if let Some(hex) = bubble_in_hex {
+            if let Some(c) = parse_hex_color(hex).filter(|c| c.a() == u8::MAX) {
+                self.bubble_in_bg = c;
+                let dark_text = Color32::from_rgb(15, 23, 42);
+                let light_text = Color32::from_rgb(215, 218, 224);
+                self.bubble_in_text =
+                    if contrast_ratio(dark_text, c) >= contrast_ratio(light_text, c) {
+                        dark_text
+                    } else {
+                        light_text
+                    };
+
+                let dark_meta = Color32::from_rgb(100, 116, 139);
+                let light_meta = Color32::from_rgb(142, 150, 165);
+                self.bubble_in_meta =
+                    if contrast_ratio(dark_meta, c) >= contrast_ratio(light_meta, c) {
+                        dark_meta
+                    } else {
+                        light_meta
+                    };
+            }
+        }
+    }
 }
 
 pub(super) fn parse_hex_color(s: &str) -> Option<Color32> {
@@ -240,13 +347,24 @@ pub(super) fn parse_hex_color(s: &str) -> Option<Color32> {
         let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
         let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
         Some(Color32::from_rgb(r, g, b))
+    } else if hex.len() == 8 {
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+        Some(Color32::from_rgba_unmultiplied(r, g, b, a))
     } else {
         None
     }
 }
 
 pub(super) fn format_hex_color(c: Color32) -> String {
-    format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b())
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    if a == 255 {
+        format!("#{:02X}{:02X}{:02X}", r, g, b)
+    } else {
+        format!("#{:02X}{:02X}{:02X}{:02X}", r, g, b, a)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -255,14 +373,14 @@ pub(super) fn format_hex_color(c: Color32) -> String {
 
 pub(super) fn avatar_color_for(name: &str, is_group: bool) -> Color32 {
     const PALETTE: &[Color32] = &[
-        Color32::from_rgb(64, 120, 192),  // Atom Blue (#4078C0)
-        Color32::from_rgb(56, 148, 160),  // Atom Cyan (#3894A0)
-        Color32::from_rgb(152, 88, 178),  // Atom Purple (#9858B2)
-        Color32::from_rgb(190, 80, 70),   // Atom Red (#BE5046)
-        Color32::from_rgb(184, 118, 62),  // Atom Orange (#B8763E)
-        Color32::from_rgb(98, 148, 72),   // Atom Green (#629448)
-        Color32::from_rgb(82, 116, 196),  // Atom Indigo
-        Color32::from_rgb(72, 138, 182),  // Atom Cerulean
+        Color32::from_rgb(64, 120, 192), // Atom Blue (#4078C0)
+        Color32::from_rgb(56, 148, 160), // Atom Cyan (#3894A0)
+        Color32::from_rgb(152, 88, 178), // Atom Purple (#9858B2)
+        Color32::from_rgb(190, 80, 70),  // Atom Red (#BE5046)
+        Color32::from_rgb(184, 118, 62), // Atom Orange (#B8763E)
+        Color32::from_rgb(98, 148, 72),  // Atom Green (#629448)
+        Color32::from_rgb(82, 116, 196), // Atom Indigo
+        Color32::from_rgb(72, 138, 182), // Atom Cerulean
     ];
     let mut hash: usize = if is_group { 3 } else { 0 };
     for b in name.bytes() {
@@ -315,11 +433,15 @@ pub(super) fn fold_vn_search(s: &str) -> String {
             let mapped = match c {
                 'à' | 'á' | 'ạ' | 'ả' | 'ã' | 'â' | 'ầ' | 'ấ' | 'ậ' | 'ẩ' | 'ẫ' | 'ă' | 'ằ'
                 | 'ắ' | 'ặ' | 'ẳ' | 'ẵ' => 'a',
-                'è' | 'é' | 'ẹ' | 'ẻ' | 'ẽ' | 'ê' | 'ề' | 'ế' | 'ệ' | 'ể' | 'ễ' => 'e',
+                'è' | 'é' | 'ẹ' | 'ẻ' | 'ẽ' | 'ê' | 'ề' | 'ế' | 'ệ' | 'ể' | 'ễ' => {
+                    'e'
+                }
                 'ì' | 'í' | 'ị' | 'ỉ' | 'ĩ' => 'i',
                 'ò' | 'ó' | 'ọ' | 'ỏ' | 'õ' | 'ô' | 'ồ' | 'ố' | 'ộ' | 'ổ' | 'ỗ' | 'ơ' | 'ờ'
                 | 'ớ' | 'ợ' | 'ở' | 'ỡ' => 'o',
-                'ù' | 'ú' | 'ụ' | 'ủ' | 'ũ' | 'ư' | 'ừ' | 'ứ' | 'ự' | 'ử' | 'ữ' => 'u',
+                'ù' | 'ú' | 'ụ' | 'ủ' | 'ũ' | 'ư' | 'ừ' | 'ứ' | 'ự' | 'ử' | 'ữ' => {
+                    'u'
+                }
                 'ỳ' | 'ý' | 'ỵ' | 'ỷ' | 'ỹ' => 'y',
                 'đ' => 'd',
                 other => other,
@@ -341,6 +463,50 @@ pub(super) fn matches_vn_query(haystack: &str, query_lower: &str, query_folded: 
     !query_folded.is_empty() && fold_vn_search(haystack).contains(query_folded)
 }
 
+fn paint_circular_image(
+    painter: &egui::Painter,
+    center: Pos2,
+    radius: f32,
+    tex: &TextureHandle,
+) {
+    let [tw, th] = tex.size();
+    let (uv_min, uv_max) = if tw == th || tw == 0 || th == 0 {
+        (Pos2::ZERO, Pos2::new(1.0, 1.0))
+    } else if tw > th {
+        let crop = ((tw - th) as f32 / (2.0 * tw as f32)).clamp(0.0, 0.49);
+        (Pos2::new(crop, 0.0), Pos2::new(1.0 - crop, 1.0))
+    } else {
+        let crop = ((th - tw) as f32 / (2.0 * th as f32)).clamp(0.0, 0.49);
+        (Pos2::new(0.0, crop), Pos2::new(1.0, 1.0 - crop))
+    };
+
+    let mut mesh = egui::Mesh::with_texture(tex.id());
+    let n_pts = 48;
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: center,
+        uv: Pos2::new((uv_min.x + uv_max.x) * 0.5, (uv_min.y + uv_max.y) * 0.5),
+        color: Color32::WHITE,
+    });
+    for i in 0..=n_pts {
+        let angle = (i as f32) / (n_pts as f32) * std::f32::consts::TAU;
+        let (sin_a, cos_a) = angle.sin_cos();
+        let pos = Pos2::new(center.x + radius * cos_a, center.y + radius * sin_a);
+        let u = uv_min.x + (cos_a * 0.5 + 0.5) * (uv_max.x - uv_min.x);
+        let v = uv_min.y + (sin_a * 0.5 + 0.5) * (uv_max.y - uv_min.y);
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos,
+            uv: Pos2::new(u, v),
+            color: Color32::WHITE,
+        });
+        if i > 0 {
+            mesh.indices.push(0);
+            mesh.indices.push(i as u32);
+            mesh.indices.push((i + 1) as u32);
+        }
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 fn paint_single_circle_avatar(
     painter: &egui::Painter,
     center: Pos2,
@@ -354,19 +520,19 @@ fn paint_single_circle_avatar(
     if let Some(url) = avatar_url.map(str::trim).filter(|u| {
         !u.is_empty()
             && !u.ends_with("/default")
+            && !u.contains("default_avatar")
+            && !u.contains("avatar_default")
             && (u.starts_with("http://") || u.starts_with("https://"))
     }) {
         let file_or_base = crate::chat::avatar_file_key(Some(url))
             .unwrap_or_else(|| url.split('?').next().unwrap_or(url).to_string());
-        let key = format!("ava_{}", crate::crypto::md5_hex(&file_or_base));
+        let hash = crate::crypto::md5_hex(&file_or_base);
+        // Issue #131: Use `avt_` key prefix so `worker.rs` decodes the full uncropped square
+        // avatar instead of applying the legacy `ava_` 160x160 center cutout crop (which zoomed
+        // 240x240 / 480x480 Zalo avatars by 1.5x–3x).
+        let key = format!("avt_{hash}");
         if let Some(tex) = textures.get(&key) {
-            let rect = Rect::from_center_size(center, Vec2::splat(radius * 2.0));
-            painter.image(
-                tex.id(),
-                rect,
-                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                Color32::WHITE,
-            );
+            paint_circular_image(painter, center, radius, tex);
             painter.circle_stroke(
                 center,
                 radius,
@@ -376,9 +542,18 @@ fn paint_single_circle_avatar(
         }
         if loading.insert(key.clone()) {
             if let Some(tx) = WORKER_TX.get() {
+                let legacy_cache = std::path::PathBuf::from("stickers_cache")
+                    .join(format!("ava_{hash}.png"));
+                let new_cache = std::path::PathBuf::from("stickers_cache")
+                    .join(format!("avt_{hash}.png"));
+                let fetch_url = if !new_cache.is_file() && legacy_cache.is_file() {
+                    format!("local://{}", legacy_cache.display())
+                } else {
+                    url.to_string()
+                };
                 let _ = tx.send(WorkerCmd::FetchStickerImage {
                     key,
-                    url: url.to_string(),
+                    url: fetch_url,
                 });
             }
         }
@@ -427,20 +602,12 @@ pub(super) fn paint_user_avatar(
 
     if !is_group || has_single_custom_photo {
         paint_single_circle_avatar(
-            painter,
-            center,
-            radius,
-            name,
-            is_group,
-            avatar_url,
-            textures,
-            loading,
+            painter, center, radius, name, is_group, avatar_url, textures, loading,
         );
         return;
     }
 
     // Parse composite group member slots (`multi:<total>;<name1>|<url1>;<name2>|<url2>;...`)
-    // or derive member slots from comma-separated group name (`"Đỗ Thành, Đtc, Hoang"`).
     let mut slots: Vec<(String, String)> = Vec::new();
     let mut total_members: usize = 0;
     if let Some(rest) = raw_ava.strip_prefix("multi:") {
@@ -456,100 +623,96 @@ pub(super) fn paint_user_avatar(
             }
         }
     }
-    if slots.is_empty() {
-        let comma_parts: Vec<&str> = name
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .collect();
-        if comma_parts.len() >= 2 {
-            for p in comma_parts.iter().take(4) {
-                slots.push(((*p).to_string(), String::new()));
-            }
-            total_members = comma_parts.len();
-        } else {
-            let words: Vec<&str> = name
-                .split_whitespace()
-                .filter(|w| !w.is_empty())
-                .collect();
-            if words.len() >= 3 {
-                for w in words.iter().take(3) {
-                    slots.push(((*w).to_string(), String::new()));
-                }
-            } else {
-                slots.push((name.to_string(), String::new()));
-                slots.push(("TV".to_string(), String::new()));
-                slots.push(("N".to_string(), String::new()));
-            }
-            total_members = slots.len();
-        }
+
+    // Nếu không có slots hoặc tất cả các slot đều không có ảnh URL:
+    // Vẽ avatar nhóm chuẩn đơn với màu sắc và tên viết tắt đẹp mắt, không cắt ghép chữ li ti
+    let has_any_photo = slots.iter().any(|(_, u)| !u.is_empty());
+    if !has_any_photo {
+        paint_single_circle_avatar(
+            painter, center, radius, name, true, None, textures, loading,
+        );
+        return;
     }
+
     if total_members < slots.len() {
         total_members = slots.len();
     }
 
-    let border_col = Color32::from_rgb(24, 27, 34);
-    let n_slots = slots.len();
+    let border_col = Color32::from_rgb(26, 30, 38);
+    // Vẽ vòng tròn nền lớn chuẩn bán kính R để toàn bộ avatar nhóm nằm gọn trong hình tròn
+    painter.circle_filled(center, radius, border_col);
+    painter.circle_stroke(
+        center,
+        radius,
+        Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(255, 255, 255, 24)),
+    );
+
+    let n_slots = slots.len().min(4);
     if n_slots == 2 {
-        let sub_r = (radius * 0.61).max(6.0);
-        let p1 = Pos2::new(center.x + radius - sub_r, center.y - radius + sub_r);
-        let p0 = Pos2::new(center.x - radius + sub_r, center.y + radius - sub_r);
+        let sub_r = radius * 0.46;
+        let delta = radius * 0.25;
+        let p0 = Pos2::new(center.x - delta, center.y + delta);
+        let p1 = Pos2::new(center.x + delta, center.y - delta);
         for &(pos, idx) in &[(p1, 1usize), (p0, 0usize)] {
-            painter.circle_filled(pos, sub_r + 1.2, border_col);
-            let (ref m_name, ref m_url) = slots[idx];
-            paint_single_circle_avatar(
-                painter,
-                pos,
-                sub_r,
-                m_name,
-                false,
-                if m_url.is_empty() { None } else { Some(m_url.as_str()) },
-                textures,
-                loading,
-            );
+            if let Some((ref m_name, ref m_url)) = slots.get(idx) {
+                painter.circle_filled(pos, sub_r + 1.2, border_col);
+                paint_single_circle_avatar(
+                    painter,
+                    pos,
+                    sub_r,
+                    m_name,
+                    false,
+                    if m_url.is_empty() { None } else { Some(m_url.as_str()) },
+                    textures,
+                    loading,
+                );
+            }
         }
     } else if n_slots == 3 && total_members <= 3 {
-        // Zalo PC `zavatar-multi.zavatar-3`: 1 top-center (z=4), 1 bottom-left (z=3), 1 bottom-right (z=2)
-        let sub_r = (radius * 0.56).max(5.5);
-        let p_top = Pos2::new(center.x, center.y - radius + sub_r);
-        let p_bl = Pos2::new(center.x - radius + sub_r + 0.5, center.y + radius - sub_r - 0.5);
-        let p_br = Pos2::new(center.x + radius - sub_r - 0.5, center.y + radius - sub_r - 0.5);
+        // Zalo PC `zavatar-multi.zavatar-3`: 1 top-center, 1 bottom-left, 1 bottom-right
+        let sub_r = radius * 0.42;
+        let p_top = Pos2::new(center.x, center.y - radius * 0.40);
+        let p_bl = Pos2::new(center.x - radius * 0.38, center.y + radius * 0.34);
+        let p_br = Pos2::new(center.x + radius * 0.38, center.y + radius * 0.34);
         for &(pos, idx) in &[(p_br, 2usize), (p_bl, 1usize), (p_top, 0usize)] {
-            painter.circle_filled(pos, sub_r + 1.2, border_col);
-            let (ref m_name, ref m_url) = slots[idx];
-            paint_single_circle_avatar(
-                painter,
-                pos,
-                sub_r,
-                m_name,
-                false,
-                if m_url.is_empty() { None } else { Some(m_url.as_str()) },
-                textures,
-                loading,
-            );
+            if let Some((ref m_name, ref m_url)) = slots.get(idx) {
+                painter.circle_filled(pos, sub_r + 1.2, border_col);
+                paint_single_circle_avatar(
+                    painter,
+                    pos,
+                    sub_r,
+                    m_name,
+                    false,
+                    if m_url.is_empty() { None } else { Some(m_url.as_str()) },
+                    textures,
+                    loading,
+                );
+            }
         }
     } else {
-        // Zalo PC `zavatar-multi.zavatar-4`: 2x2 grid (with member count badge in bottom-right if total_members >= 4)
-        let sub_r = (radius * 0.52).max(5.0);
-        let p_tl = Pos2::new(center.x - radius + sub_r, center.y - radius + sub_r);
-        let p_tr = Pos2::new(center.x + radius - sub_r, center.y - radius + sub_r);
-        let p_bl = Pos2::new(center.x - radius + sub_r, center.y + radius - sub_r);
-        let p_br = Pos2::new(center.x + radius - sub_r, center.y + radius - sub_r);
-        let show_counter = total_members > 4 || n_slots < 4;
+        // Zalo PC `zavatar-multi.zavatar-4`: 2x2 grid (với ô đếm số thành viên còn lại ở góc dưới-phải nếu > 4)
+        let sub_r = radius * 0.38;
+        let delta = radius * 0.38;
+        let p_tl = Pos2::new(center.x - delta, center.y - delta);
+        let p_tr = Pos2::new(center.x + delta, center.y - delta);
+        let p_bl = Pos2::new(center.x - delta, center.y + delta);
+        let p_br = Pos2::new(center.x + delta, center.y + delta);
+
+        let show_counter = total_members > 4;
         if show_counter {
             painter.circle_filled(p_br, sub_r + 1.2, border_col);
-            painter.circle_filled(p_br, sub_r, Color32::from_rgb(56, 65, 82));
+            painter.circle_filled(p_br, sub_r, Color32::from_rgb(52, 60, 76));
             let cnt_txt = if total_members > 99 {
                 "99+".to_string()
             } else {
-                total_members.to_string()
+                format!("+{}", total_members.saturating_sub(3))
             };
             painter.text(
                 p_br,
                 egui::Align2::CENTER_CENTER,
                 cnt_txt,
                 FontId::proportional((sub_r * 0.76).max(8.0)),
-                Color32::from_rgb(218, 226, 240),
+                Color32::from_rgb(220, 228, 242),
             );
         } else if let Some((ref m_name, ref m_url)) = slots.get(3) {
             painter.circle_filled(p_br, sub_r + 1.2, border_col);
@@ -564,6 +727,7 @@ pub(super) fn paint_user_avatar(
                 loading,
             );
         }
+
         for &(pos, idx) in &[(p_bl, 2usize), (p_tr, 1usize), (p_tl, 0usize)] {
             if let Some((ref m_name, ref m_url)) = slots.get(idx) {
                 painter.circle_filled(pos, sub_r + 1.2, border_col);
@@ -633,9 +797,20 @@ pub mod lucide {
     pub const CHEVRON_DOWN: &str = "\u{e06d}";
     pub const USER: &str = "\u{e19f}";
     pub const NEWSPAPER: &str = "\u{e124}";
+    pub const QUOTE: &str = "\u{e239}";
+    pub const FORWARD: &str = "\u{e229}";
+    pub const SHARE_2: &str = "\u{e156}";
+    pub const TRASH_2: &str = "\u{e18e}";
+    pub const INFO: &str = "\u{e0f9}";
 }
 
-pub(super) fn draw_lucide_icon(painter: &egui::Painter, center: Pos2, icon: &str, size: f32, color: Color32) {
+pub(super) fn draw_lucide_icon(
+    painter: &egui::Painter,
+    center: Pos2,
+    icon: &str,
+    size: f32,
+    color: Color32,
+) {
     painter.text(
         center,
         egui::Align2::CENTER_CENTER,
@@ -673,7 +848,16 @@ pub(super) fn draw_icon_image(painter: &egui::Painter, center: Pos2, size: f32, 
     draw_lucide_icon(painter, center, lucide::IMAGE, size, color);
 }
 
-pub(super) fn draw_icon_attachment(painter: &egui::Painter, center: Pos2, size: f32, color: Color32) {
+pub(super) fn draw_icon_camera(painter: &egui::Painter, center: Pos2, size: f32, color: Color32) {
+    draw_lucide_icon(painter, center, lucide::CAMERA, size, color);
+}
+
+pub(super) fn draw_icon_attachment(
+    painter: &egui::Painter,
+    center: Pos2,
+    size: f32,
+    color: Color32,
+) {
     draw_lucide_icon(painter, center, lucide::PAPERCLIP, size, color);
 }
 
@@ -696,9 +880,9 @@ pub(super) fn draw_icon_feed(painter: &egui::Painter, center: Pos2, size: f32, c
     draw_lucide_icon(painter, center, lucide::NEWSPAPER, size, color);
 }
 
-
 pub(super) fn draw_icon_drawer(painter: &egui::Painter, center: Pos2, size: f32, color: Color32) {
-    draw_lucide_icon(painter, center, lucide::PANEL_RIGHT, size, color);
+    // Icon ⓘ to rõ thay vì PANEL_RIGHT mờ khó thấy.
+    draw_lucide_icon(painter, center, lucide::INFO, size * 1.15, color);
 }
 
 pub(super) fn draw_icon_pin(painter: &egui::Painter, center: Pos2, size: f32, color: Color32) {
@@ -709,7 +893,12 @@ pub(super) fn draw_icon_copy(painter: &egui::Painter, center: Pos2, size: f32, c
     draw_lucide_icon(painter, center, lucide::COPY, size, color);
 }
 
-pub(super) fn draw_icon_user_plus(painter: &egui::Painter, center: Pos2, size: f32, color: Color32) {
+pub(super) fn draw_icon_user_plus(
+    painter: &egui::Painter,
+    center: Pos2,
+    size: f32,
+    color: Color32,
+) {
     draw_lucide_icon(painter, center, lucide::USER_PLUS, size, color);
 }
 
@@ -747,10 +936,162 @@ pub fn load_app_icon() -> Option<egui::IconData> {
     })
 }
 
+/// Render a dynamic 64x64 RGBA window/taskbar icon with a crisp anti-aliased red unread badge
+/// (`1`..`99+`) using a 3x5 bitmap pixel font renderer.
+pub fn load_app_icon_with_badge(unread_count: usize) -> Option<egui::IconData> {
+    if unread_count == 0 {
+        return load_app_icon();
+    }
+    let base = image::load_from_memory(APP_ICON_PNG).ok()?;
+    let size: u32 = 64;
+    let mut rgba = image::imageops::resize(
+        &base.to_rgba8(),
+        size,
+        size,
+        image::imageops::FilterType::Lanczos3,
+    )
+    .into_raw();
+
+    let label = if unread_count > 99 {
+        "99+".to_string()
+    } else {
+        unread_count.to_string()
+    };
+    let chars: Vec<char> = label.chars().collect();
+
+    let blend_pixel = |buf: &mut [u8], x: i32, y: i32, r: u8, g: u8, b: u8, alpha: u8| {
+        if x < 0 || y < 0 || x >= size as i32 || y >= size as i32 || alpha == 0 {
+            return;
+        }
+        let idx = ((y as u32 * size + x as u32) * 4) as usize;
+        let src_a = alpha as f32 / 255.0;
+        let dst_a = buf[idx + 3] as f32 / 255.0;
+        let out_a = src_a + dst_a * (1.0 - src_a);
+        if out_a <= 0.0 {
+            return;
+        }
+        buf[idx] = (((r as f32) * src_a + (buf[idx] as f32) * dst_a * (1.0 - src_a)) / out_a)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        buf[idx + 1] = (((g as f32) * src_a + (buf[idx + 1] as f32) * dst_a * (1.0 - src_a))
+            / out_a)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        buf[idx + 2] = (((b as f32) * src_a + (buf[idx + 2] as f32) * dst_a * (1.0 - src_a))
+            / out_a)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        buf[idx + 3] = (out_a * 255.0).round().clamp(0.0, 255.0) as u8;
+    };
+
+    let scale: f32 = 2.0;
+    let badge_radius: f32 = 6.5 * scale;
+    let half_span: f32 = if chars.len() >= 3 {
+        4.0 * scale
+    } else if chars.len() == 2 {
+        2.0 * scale
+    } else {
+        0.0
+    };
+    let border_w: f32 = 1.2 * scale;
+    let cx: f32 = (size as f32) - badge_radius - half_span - border_w.ceil();
+    let cy: f32 = badge_radius + border_w.floor();
+
+    let min_y = ((cy - badge_radius - border_w - 1.0).floor() as i32).max(0);
+    let max_y = ((cy + badge_radius + border_w + 2.0).ceil() as i32).min(size as i32);
+    let min_x = ((cx - half_span - badge_radius - border_w - 1.0).floor() as i32).max(0);
+    let max_x = ((cx + half_span + badge_radius + border_w + 2.0).ceil() as i32).min(size as i32);
+
+    for y in min_y..max_y {
+        for x in min_x..max_x {
+            let fx = x as f32;
+            let fy = y as f32;
+            let lo_x = cx - half_span;
+            let hi_x = (cx + half_span).max(lo_x);
+            let clamped_x = fx.clamp(lo_x, hi_x);
+            let dist = (fx - clamped_x).hypot(fy - cy);
+            if dist <= badge_radius + border_w + 0.6 {
+                if dist <= badge_radius - 0.5 {
+                    blend_pixel(&mut rgba, x, y, 239, 56, 56, 255);
+                } else if dist <= badge_radius + 0.5 {
+                    let t = dist - (badge_radius - 0.5);
+                    let r = (239.0 * (1.0 - t) + 255.0 * t).round() as u8;
+                    let g = (56.0 * (1.0 - t) + 255.0 * t).round() as u8;
+                    let b = (56.0 * (1.0 - t) + 255.0 * t).round() as u8;
+                    blend_pixel(&mut rgba, x, y, r, g, b, 255);
+                } else if dist <= badge_radius + border_w - 0.3 {
+                    blend_pixel(&mut rgba, x, y, 255, 255, 255, 255);
+                } else {
+                    let a = ((badge_radius + border_w + 0.6 - dist) * 255.0)
+                        .round()
+                        .clamp(0.0, 255.0) as u8;
+                    blend_pixel(&mut rgba, x, y, 255, 255, 255, a);
+                }
+            }
+        }
+    }
+
+    let glyph_rows = |ch: char| -> [u8; 5] {
+        match ch {
+            '0' => [0b111, 0b101, 0b101, 0b101, 0b111],
+            '1' => [0b010, 0b110, 0b010, 0b010, 0b111],
+            '2' => [0b111, 0b001, 0b111, 0b100, 0b111],
+            '3' => [0b111, 0b001, 0b111, 0b001, 0b111],
+            '4' => [0b101, 0b101, 0b111, 0b001, 0b001],
+            '5' => [0b111, 0b100, 0b111, 0b001, 0b111],
+            '6' => [0b111, 0b100, 0b111, 0b101, 0b111],
+            '7' => [0b111, 0b001, 0b010, 0b010, 0b010],
+            '8' => [0b111, 0b101, 0b111, 0b101, 0b111],
+            '9' => [0b111, 0b101, 0b111, 0b001, 0b111],
+            '+' => [0b000, 0b010, 0b111, 0b010, 0b000],
+            _ => [0; 5],
+        }
+    };
+
+    let px_scale: i32 = 2;
+    let glyph_w: i32 = 3 * px_scale;
+    let glyph_h: i32 = 5 * px_scale;
+    let gap: i32 = px_scale;
+    let total_w: i32 = (chars.len() as i32) * glyph_w + ((chars.len() as i32 - 1).max(0)) * gap;
+    let start_x: i32 = (cx - (total_w as f32) * 0.5).round() as i32;
+    let start_y: i32 = (cy - (glyph_h as f32) * 0.5).round() as i32;
+
+    for (idx, ch) in chars.iter().enumerate() {
+        let rows = glyph_rows(*ch);
+        let gx = start_x + (idx as i32) * (glyph_w + gap);
+        for (r, mask) in rows.iter().enumerate() {
+            for c in 0..3_i32 {
+                if (mask >> (2 - c)) & 1 == 1 {
+                    for dy in 0..px_scale {
+                        for dx in 0..px_scale {
+                            blend_pixel(
+                                &mut rgba,
+                                gx + c * px_scale + dx,
+                                start_y + (r as i32) * px_scale + dy,
+                                255,
+                                255,
+                                255,
+                                255,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Some(egui::IconData {
+        rgba,
+        width: size,
+        height: size,
+    })
+}
+
 pub(super) fn load_app_logo_texture(ctx: &egui::Context) -> Option<TextureHandle> {
     let img = image::load_from_memory(APP_ICON_PNG).ok()?.into_rgba8();
     let (w, h) = img.dimensions();
-    let color_img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], img.as_raw());
+    let color_img =
+        egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], img.as_raw());
     Some(ctx.load_texture("zalo_app_logo", color_img, TextureOptions::LINEAR))
 }
 
@@ -759,7 +1100,10 @@ pub(super) fn load_default_emoji_textures(ctx: &egui::Context) -> HashMap<String
         ("like", include_bytes!("../assets/emojis/like.png")),
         ("heart", include_bytes!("../assets/emojis/heart.png")),
         ("smile", include_bytes!("../assets/emojis/smile.png")),
-        ("surprised", include_bytes!("../assets/emojis/surprised.png")),
+        (
+            "surprised",
+            include_bytes!("../assets/emojis/surprised.png"),
+        ),
         ("cry", include_bytes!("../assets/emojis/cry.png")),
         ("rage", include_bytes!("../assets/emojis/rage.png")),
     ];
@@ -768,10 +1112,8 @@ pub(super) fn load_default_emoji_textures(ctx: &egui::Context) -> HashMap<String
         if let Ok(img) = image::load_from_memory(bytes) {
             let rgba = img.to_rgba8();
             let (w, h) = rgba.dimensions();
-            let color_img = egui::ColorImage::from_rgba_unmultiplied(
-                [w as usize, h as usize],
-                rgba.as_raw(),
-            );
+            let color_img =
+                egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], rgba.as_raw());
             let tex = ctx.load_texture(
                 format!("zalo_emoji_{name}"),
                 color_img,
@@ -783,9 +1125,12 @@ pub(super) fn load_default_emoji_textures(ctx: &egui::Context) -> HashMap<String
     map
 }
 
-
 /// Render an iOS/Zalo PC style rounded Toggle Switch in pure egui.
-pub(super) fn render_toggle_switch(ui: &mut egui::Ui, value: &mut bool, pal: &ThemePalette) -> egui::Response {
+pub(super) fn render_toggle_switch(
+    ui: &mut egui::Ui,
+    value: &mut bool,
+    pal: &ThemePalette,
+) -> egui::Response {
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(38.0, 20.0), Sense::click());
     if resp.clicked() {
         *value = !*value;
@@ -816,8 +1161,8 @@ pub(super) fn render_toggle_switch(ui: &mut egui::Ui, value: &mut bool, pal: &Th
     resp
 }
 
-
 static CJK_LOADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ACTIVE_FONT_CHOICE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 pub(crate) fn is_cjk(c: char) -> bool {
     matches!(c as u32,
@@ -833,14 +1178,27 @@ pub(super) fn ensure_cjk_font<'a>(ctx: &egui::Context, mut texts: impl Iterator<
         return;
     }
     CJK_LOADED.store(true, Ordering::Relaxed);
-    build_fonts(ctx, true);
+    let choice = ACTIVE_FONT_CHOICE
+        .lock()
+        .map(|c| c.clone())
+        .unwrap_or_else(|_| "default".into());
+    build_fonts(ctx, &choice, true);
 }
 
+pub(super) fn setup_custom_fonts_with_choice(ctx: &egui::Context, font_choice: &str) {
+    if let Ok(mut active) = ACTIVE_FONT_CHOICE.lock() {
+        *active = font_choice.to_string();
+    }
+    let with_cjk = CJK_LOADED.load(std::sync::atomic::Ordering::Relaxed);
+    build_fonts(ctx, font_choice, with_cjk);
+}
+
+#[allow(dead_code)]
 pub(super) fn setup_custom_fonts(ctx: &egui::Context) {
-    build_fonts(ctx, false);
+    setup_custom_fonts_with_choice(ctx, "default");
 }
 
-fn build_fonts(ctx: &egui::Context, with_cjk: bool) {
+pub(super) fn build_fonts(ctx: &egui::Context, font_choice: &str, with_cjk: bool) {
     let mut fonts = egui::FontDefinitions::default();
 
     // 1. Embed official Lucide Icon Font (vector glyphs for all UI icons)
@@ -858,6 +1216,76 @@ fn build_fonts(ctx: &egui::Context, with_cjk: bool) {
         egui::FontData::from_static(BUNDLED_SANS),
     );
 
+    // 3. Optional user-selected system or custom font family (Requirement R2)
+    let mut selected_font_loaded = false;
+    let choice_norm = font_choice.trim().to_lowercase();
+    match choice_norm.as_str() {
+        "segoe_ui" | "segoe" => {
+            let candidates = [
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+                "/usr/share/fonts/truetype/segoeui.ttf",
+            ];
+            for path in candidates {
+                if let Ok(font_data) = std::fs::read(path) {
+                    fonts.font_data.insert(
+                        "selected_font".to_owned(),
+                        egui::FontData::from_owned(font_data),
+                    );
+                    selected_font_loaded = true;
+                    break;
+                }
+            }
+        }
+        "arial" => {
+            let candidates = [
+                "C:\\Windows\\Fonts\\arial.ttf",
+                "/System/Library/Fonts/Supplemental/Arial.ttf",
+                "/Library/Fonts/Arial.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ];
+            for path in candidates {
+                if let Ok(font_data) = std::fs::read(path) {
+                    fonts.font_data.insert(
+                        "selected_font".to_owned(),
+                        egui::FontData::from_owned(font_data),
+                    );
+                    selected_font_loaded = true;
+                    break;
+                }
+            }
+        }
+        "tahoma" => {
+            let candidates = [
+                "C:\\Windows\\Fonts\\tahoma.ttf",
+                "/System/Library/Fonts/Supplemental/Tahoma.ttf",
+            ];
+            for path in candidates {
+                if let Ok(font_data) = std::fs::read(path) {
+                    fonts.font_data.insert(
+                        "selected_font".to_owned(),
+                        egui::FontData::from_owned(font_data),
+                    );
+                    selected_font_loaded = true;
+                    break;
+                }
+            }
+        }
+        "default" | "" => {
+            // Uses bundled_sans directly at priority index 0
+        }
+        _custom_path => {
+            if let Ok(font_data) = std::fs::read(font_choice.trim()) {
+                fonts.font_data.insert(
+                    "selected_font".to_owned(),
+                    egui::FontData::from_owned(font_data),
+                );
+                selected_font_loaded = true;
+            }
+        }
+    }
+
+    // Also load generic system vietnamese_font as supplementary candidate if available
     let font_candidates = [
         "C:\\Windows\\Fonts\\segoeui.ttf",
         "C:\\Windows\\Fonts\\arial.ttf",
@@ -885,7 +1313,7 @@ fn build_fonts(ctx: &egui::Context, with_cjk: bool) {
         }
     }
 
-    // 3. Optional CJK (Chinese / Japanese / Korean) system font fallback (#5, #6)
+    // 4. Optional CJK (Chinese / Japanese / Korean) system font fallback (#5, #6)
     let cjk_candidates = [
         "C:\\Windows\\Fonts\\msyh.ttc",
         "C:\\Windows\\Fonts\\simsun.ttc",
@@ -900,26 +1328,38 @@ fn build_fonts(ctx: &egui::Context, with_cjk: bool) {
     ];
     for path in cjk_candidates.into_iter().filter(|_| with_cjk) {
         if let Ok(font_data) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "cjk_font".to_owned(),
-                egui::FontData::from_owned(font_data),
-            );
+            fonts
+                .font_data
+                .insert("cjk_font".to_owned(), egui::FontData::from_owned(font_data));
             break;
         }
     }
 
-    // Fallback order: bundled sans guarantees Vietnamese coverage, CJK supplies Han/Kana/Hangul, Lucide supplies icon glyphs
-    let prop = fonts.families.entry(egui::FontFamily::Proportional).or_default();
-    prop.insert(0, "bundled_sans".to_owned());
-    if fonts.font_data.contains_key("vietnamese_font") {
-        prop.insert(1, "vietnamese_font".to_owned());
+    // 5. Fallback priority order:
+    // If a custom or system font is selected, place it at index 0.
+    // Index 1 (or 0 for default) is bundled_sans, guaranteeing full Vietnamese diacritic coverage.
+    let prop = fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default();
+    if selected_font_loaded {
+        prop.insert(0, "selected_font".to_owned());
+        prop.insert(1, "bundled_sans".to_owned());
+    } else {
+        prop.insert(0, "bundled_sans".to_owned());
+    }
+    if fonts.font_data.contains_key("vietnamese_font") && !selected_font_loaded {
+        prop.push("vietnamese_font".to_owned());
     }
     if fonts.font_data.contains_key("cjk_font") {
         prop.push("cjk_font".to_owned());
     }
     prop.push("lucide_font".to_owned());
 
-    let mono = fonts.families.entry(egui::FontFamily::Monospace).or_default();
+    let mono = fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default();
     mono.push("bundled_sans".to_owned());
     if fonts.font_data.contains_key("vietnamese_font") {
         mono.push("vietnamese_font".to_owned());
@@ -930,4 +1370,59 @@ fn build_fonts(ctx: &egui::Context, with_cjk: bool) {
     mono.push("lucide_font".to_owned());
 
     ctx.set_fonts(fonts);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_and_format_hex_color() {
+        assert_eq!(
+            parse_hex_color("#0068FF"),
+            Some(Color32::from_rgb(0, 104, 255))
+        );
+        assert_eq!(
+            parse_hex_color("528BFF"),
+            Some(Color32::from_rgb(82, 139, 255))
+        );
+        assert_eq!(
+            parse_hex_color("#0068FF80"),
+            Some(Color32::from_rgba_unmultiplied(0, 104, 255, 128))
+        );
+        assert_eq!(parse_hex_color("invalid"), None);
+        assert_eq!(parse_hex_color("#123"), None);
+
+        let col = Color32::from_rgb(0, 104, 255);
+        assert_eq!(format_hex_color(col), "#0068FF");
+    }
+
+    #[test]
+    fn test_palette_apply_custom_colors() {
+        let mut pal = ThemePalette::light();
+        pal.apply_custom_colors(
+            Some("#059669"),
+            Some("#7C3AED"),
+            Some("#E11D48"),
+            Some("#FFFFFF"),
+        );
+        assert_eq!(pal.primary, Color32::from_rgb(5, 150, 105));
+        assert_eq!(pal.accent_online, Color32::from_rgb(124, 58, 237));
+        assert_eq!(pal.bubble_out_bg, Color32::from_rgb(225, 29, 72));
+        assert_eq!(pal.bubble_in_bg, Color32::WHITE);
+        assert_eq!(pal.bubble_in_text, Color32::from_rgb(15, 23, 42));
+    }
+
+    #[test]
+    fn test_palette_dark_mode_bubble_contrast() {
+        let mut pal = ThemePalette::dark();
+        pal.apply_custom_colors(
+            None,
+            None,
+            Some("#1E293B"),
+            None,
+        );
+        assert_eq!(pal.bubble_out_bg, Color32::from_rgb(30, 41, 59));
+        assert_eq!(pal.bubble_out_text, Color32::from_rgb(235, 240, 246));
+    }
 }
