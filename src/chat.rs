@@ -1180,6 +1180,24 @@ impl MessageIdentityIndex {
     }
 
     fn find(&self, messages: &[ChatMessage], incoming: &ChatMessage) -> Option<usize> {
+        // Anti-recall (#141): su kien undo giu ID rieng, khong trung ID tin goc.
+        // Tim tin goc qua target ID trong wire_ref (server_id/client_id cua undo).
+        if incoming.text.trim() == "[Tin nhắn đã thu hồi]" {
+            let targets = [
+                wire_identity(incoming.wire_ref.server_id.as_ref()),
+                wire_identity(incoming.wire_ref.client_id.as_ref()),
+            ];
+            for want in targets.iter().flatten() {
+                for (idx, m) in messages.iter().enumerate() {
+                    let same_server = wire_identity(m.wire_ref.server_id.as_ref()).as_deref() == Some(want.as_str());
+                    let same_cli = wire_identity(m.wire_ref.client_id.as_ref()).as_deref() == Some(want.as_str());
+                    let same_id = !m.id.is_empty() && m.id == *want;
+                    if (same_server || same_cli || same_id) && m.is_outgoing == incoming.is_outgoing {
+                        return Some(idx);
+                    }
+                }
+            }
+        }
         for key in Self::keys(incoming) {
             let Some(rows) = self.rows.get(&key).filter(|rows| !rows.is_empty()) else {
                 continue;
@@ -6379,16 +6397,24 @@ fn parse_chat_message(it: &Value) -> Option<ChatMessage> {
 
     // Preserve the persisted canonical ID contract until a schema-aware migration
     // can replace legacy cliMsgId keys without duplicating cached messages.
+    // Riêng sự kiện undo (#141): msg_id là ID RIÊNG của event (để merge không
+    // tưởng là "bản update" của tin gốc rồi ghi đè nội dung trước khi
+    // anti-recall kịp giữ lại). ID tin bị thu hồi đã nằm trong wire_ref
+    // (server_id/client_id) để merge tìm theo target.
     let msg_id = if is_undo_type {
-        undo_server_id
-            .clone()
-            .or_else(|| undo_client_id.clone())
-            .or_else(|| {
-                ["msgId", "cliMsgId", "globalMsgId", "lastMsgId", "id"]
-                    .iter()
-                    .find_map(|key| wire_identity(it.get(*key)))
+        ["msgId", "cliMsgId", "globalMsgId", "lastMsgId", "id"]
+            .iter()
+            .find_map(|key| wire_identity(it.get(*key)))
+            .filter(|id| {
+                Some(id) != undo_server_id.as_ref() && Some(id) != undo_client_id.as_ref()
             })
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                format!(
+                    "undo_{}_{}",
+                    undo_server_id.as_deref().unwrap_or("evt"),
+                    crate::login::unix_now()
+                )
+            })
     } else {
         ["msgId", "cliMsgId", "globalMsgId", "lastMsgId", "id"]
             .iter()
@@ -6539,6 +6565,10 @@ fn parse_chat_message(it: &Value) -> Option<ChatMessage> {
     };
 
     let mut wire_ref = crate::message_model::WireMessageRef::from_raw(it);
+    // Anti-recall (#141): sự kiện undo PHẢI giữ ID riêng của nó.
+    // Nếu gán msg_id = ID tin gốc, merge sẽ tưởng là "bản update" và ghi đè
+    // text gốc trước khi anti-recall kịp giữ lại nội dung.
+    // ID tin bị thu hồi vẫn nằm trong wire_ref.server_id/client_id để merge tìm theo target.
     if is_undo_type && (undo_server_id.is_some() || undo_client_id.is_some()) {
         wire_ref.server_id = undo_server_id.map(Value::String);
         if let Some(cli) = undo_client_id {
@@ -8933,6 +8963,57 @@ mod tests {
     }
 
     #[test]
+    fn recall_event_with_own_id_still_marks_original() {
+        // Hoi quy #141: su kien undo co ID rieng, chi mang target ID trong wire_ref.
+        // Merge phai gan nhan "[Đã thu hồi]" len tin goc ma KHONG mat noi dung/media.
+        use crate::message_model::WireMessageRef;
+        use serde_json::json;
+        let mut target = Thread {
+            id: "t1".into(),
+            name: "Test".into(),
+            is_group: false,
+            preview: "Anh dep ne".into(),
+            time: "10:00".into(),
+            messages: vec![ChatMessage {
+                id: "srv-100".into(),
+                sender: "Friend".into(),
+                text: "Anh dep ne".into(),
+                time: "10:00".into(),
+                is_outgoing: false,
+                ts: 1000,
+                link_url: Some("https://res-zalo.zadn.vn/photo.jpg".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let mut undo_wire = WireMessageRef::default();
+        undo_wire.server_id = Some(json!("srv-100"));
+        let incoming = Thread {
+            id: "t1".into(),
+            name: "Test".into(),
+            is_group: false,
+            preview: "[Tin nhắn đã thu hồi]".into(),
+            time: "10:05".into(),
+            messages: vec![ChatMessage {
+                id: "undo-evt-999".into(),
+                sender: "Friend".into(),
+                text: "[Tin nhắn đã thu hồi]".into(),
+                time: "10:05".into(),
+                is_outgoing: false,
+                ts: 1005,
+                wire_ref: undo_wire,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        merge_thread_into(&mut target, incoming, true);
+        assert_eq!(target.messages.len(), 1, "undo phai merge vao tin goc, khong tao tin moi");
+        let m = &target.messages[0];
+        assert!(m.text.starts_with("[Đã thu hồi]"), "thieu nhan thu hoi: {}", m.text);
+        assert!(m.text.contains("Anh dep ne"), "mat noi dung goc: {}", m.text);
+        assert_eq!(m.link_url.as_deref(), Some("https://res-zalo.zadn.vn/photo.jpg"));
+    }
+
     fn extract_typing_and_seen_controls_parses_events() {
         let payload = json!({
             "controls": [
@@ -10531,7 +10612,8 @@ mod send_identity_tests {
 
         let cm_undo1 = parse_chat_message(&undo1).unwrap();
         let _cm_undo2 = parse_chat_message(&undo2).unwrap();
-        assert_eq!(cm_undo1.id, "msg-500");
+        // #141: undo giu ID rieng, lien ket tin goc qua wire_ref.
+        assert_eq!(cm_undo1.id, "undo-notif-1");
         assert_eq!(cm_undo1.text, "[Tin nhắn đã thu hồi]");
 
         let mut threads = vec![Thread {
